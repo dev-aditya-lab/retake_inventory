@@ -1,6 +1,7 @@
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 /**
  * Shared authenticated-app layout: top header, desktop sidebar, mobile bottom
@@ -9,6 +10,7 @@ import { BottomNav } from "./BottomNav";
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col">
+      <OfflineBanner />
       <Header />
       <div className="flex flex-1">
         <Sidebar />

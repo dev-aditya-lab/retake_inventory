@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { company } from "@/config/company";
 import { HeaderUserMenu } from "./HeaderUserMenu";
+import { InstallAppButton } from "@/components/InstallAppButton";
 
 export function Header() {
   return (
@@ -10,7 +11,10 @@ export function Header() {
         <Image src={company.logoUrl} alt={`${company.name} logo`} width={32} height={32} className="rounded-md" />
         <span className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">{company.name}</span>
       </Link>
-      <HeaderUserMenu />
+      <div className="ml-auto flex items-center gap-2">
+        <InstallAppButton />
+        <HeaderUserMenu />
+      </div>
     </header>
   );
 }

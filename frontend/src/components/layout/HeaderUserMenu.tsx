@@ -17,7 +17,7 @@ export function HeaderUserMenu() {
   if (!user) return null;
 
   return (
-    <div className="ml-auto flex items-center gap-3">
+    <div className="flex items-center gap-3">
       <span className="hidden text-sm text-muted sm:inline">{user.name}</span>
       <button
         type="button"

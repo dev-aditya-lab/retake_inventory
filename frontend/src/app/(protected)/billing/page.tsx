@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, WifiOff, X } from "lucide-react";
 import { useListCartsQuery, useCreateCartMutation, useDiscardCartMutation } from "@/lib/redux/features/carts/cartsApi";
 import { CartPanel } from "@/components/billing/CartPanel";
 import { InvoiceSuccess } from "@/components/billing/InvoiceSuccess";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import type { Invoice } from "@/types/invoice";
 
 export default function BillingPage() {
-  const { data: carts, isLoading } = useListCartsQuery();
+  const isOnline = useOnlineStatus();
+  // Cart mutations need a live connection (stock checks, invoice numbering) —
+  // skip fetching/auto-creating carts entirely while offline rather than let
+  // them fail silently against a Redis-backed API with no offline queue.
+  const { data: carts, isLoading } = useListCartsQuery(undefined, { skip: !isOnline });
   const [createCart] = useCreateCartMutation();
   const [discardCart] = useDiscardCartMutation();
 
@@ -24,7 +29,7 @@ export default function BillingPage() {
     let cancelled = false;
     const timer = setTimeout(() => {
       if (cancelled) return;
-      if (!isLoading && carts && carts.length === 0 && Object.keys(completed).length === 0) {
+      if (isOnline && !isLoading && carts && carts.length === 0 && Object.keys(completed).length === 0) {
         createCart()
           .unwrap()
           .then((cart) => {
@@ -36,7 +41,7 @@ export default function BillingPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [isLoading, carts, completed, createCart]);
+  }, [isOnline, isLoading, carts, completed, createCart]);
 
   // Default to the first open cart until the cashier explicitly picks a tab —
   // derived at render time rather than synced via an effect.
@@ -65,6 +70,19 @@ export default function BillingPage() {
   }
 
   const tabIds = [...(carts ?? []).map((c) => c.id), ...Object.keys(completed).filter((id) => !carts?.some((c) => c.id === id))];
+
+  if (!isOnline) {
+    return (
+      <div className="mx-auto mt-12 flex max-w-sm flex-col items-center gap-3 text-center">
+        <WifiOff size={40} className="text-muted" aria-hidden />
+        <h1 className="text-lg font-semibold text-foreground">Billing needs a connection</h1>
+        <p className="text-sm text-muted">
+          You&apos;re offline. Stock levels and invoice numbers can only be confirmed with the server, so billing is
+          paused until you&apos;re back online.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>

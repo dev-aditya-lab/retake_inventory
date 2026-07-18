@@ -28,7 +28,8 @@
       "Bash(curl -s -b /tmp/cookies13.txt -X PATCH http://localhost:5000/api/carts/b8bb351a-a813-4527-b785-0c791f993a6e -H 'Content-Type: application/json' -d '{ *)",
       "Bash(curl -s -b /tmp/cookies13.txt -X PATCH \"http://localhost:5000/api/products/6a5b35e7ab2ab6fbdd89f026\" -H \"Content-Type: application/json\" -d '{\"sellingPrice\": 45, \"costPrice\": 30}')",
       "Bash(node -e ' *)",
-      "Bash(curl -s -b /tmp/cookies16.txt http://localhost:5000/api/carts)"
+      "Bash(curl -s -b /tmp/cookies16.txt http://localhost:5000/api/carts)",
+      "Bash(node scripts/generate-icons.js)"
     ],
     "additionalDirectories": [
       "\\tmp"
