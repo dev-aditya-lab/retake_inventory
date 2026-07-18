@@ -1,26 +1,127 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — single source of truth for color/spacing/radius.
+ * Light theme only (per project spec). Do not add a dark-mode override here.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Chilli red — primary brand/action color */
+  --color-chilli-50: #fef2f2;
+  --color-chilli-100: #fde2e2;
+  --color-chilli-200: #fbc9c9;
+  --color-chilli-300: #f7a3a3;
+  --color-chilli-400: #f06e6e;
+  --color-chilli-500: #e13a3a;
+  --color-chilli-600: #c81e2a;
+  --color-chilli-700: #a51722;
+  --color-chilli-800: #841620;
+  --color-chilli-900: #6d161f;
+
+  /* Chilli green — secondary/success/inventory color */
+  --color-leaf-50: #f1f9f0;
+  --color-leaf-100: #dff1dc;
+  --color-leaf-200: #bfe2ba;
+  --color-leaf-300: #93cc8b;
+  --color-leaf-400: #63ae5b;
+  --color-leaf-500: #3f8f39;
+  --color-leaf-600: #2f722b;
+  --color-leaf-700: #275b24;
+  --color-leaf-800: #22491f;
+  --color-leaf-900: #1c3d1b;
+
+  /* Neutrals */
+  --color-ink-50: #f8f8f7;
+  --color-ink-100: #f0efee;
+  --color-ink-200: #e2e0de;
+  --color-ink-300: #cac6c3;
+  --color-ink-400: #a39d98;
+  --color-ink-500: #7c756f;
+  --color-ink-600: #5c564f;
+  --color-ink-700: #423e39;
+  --color-ink-800: #2c2926;
+  --color-ink-900: #1a1817;
+
+  /* Semantic */
+  --color-background: #ffffff;
+  --color-surface: var(--color-ink-50);
+  --color-foreground: var(--color-ink-900);
+  --color-muted: var(--color-ink-500);
+  --color-border: var(--color-ink-200);
+  --color-primary: var(--color-chilli-600);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-leaf-600);
+  --color-secondary-foreground: #ffffff;
+  --color-danger: var(--color-chilli-700);
+  --color-success: var(--color-leaf-600);
+  --color-warning: #b5730a;
+
+  /* Radius scale */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-chilli-50: var(--color-chilli-50);
+  --color-chilli-100: var(--color-chilli-100);
+  --color-chilli-200: var(--color-chilli-200);
+  --color-chilli-300: var(--color-chilli-300);
+  --color-chilli-400: var(--color-chilli-400);
+  --color-chilli-500: var(--color-chilli-500);
+  --color-chilli-600: var(--color-chilli-600);
+  --color-chilli-700: var(--color-chilli-700);
+  --color-chilli-800: var(--color-chilli-800);
+  --color-chilli-900: var(--color-chilli-900);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-leaf-50: var(--color-leaf-50);
+  --color-leaf-100: var(--color-leaf-100);
+  --color-leaf-200: var(--color-leaf-200);
+  --color-leaf-300: var(--color-leaf-300);
+  --color-leaf-400: var(--color-leaf-400);
+  --color-leaf-500: var(--color-leaf-500);
+  --color-leaf-600: var(--color-leaf-600);
+  --color-leaf-700: var(--color-leaf-700);
+  --color-leaf-800: var(--color-leaf-800);
+  --color-leaf-900: var(--color-leaf-900);
+
+  --color-ink-50: var(--color-ink-50);
+  --color-ink-100: var(--color-ink-100);
+  --color-ink-200: var(--color-ink-200);
+  --color-ink-300: var(--color-ink-300);
+  --color-ink-400: var(--color-ink-400);
+  --color-ink-500: var(--color-ink-500);
+  --color-ink-600: var(--color-ink-600);
+  --color-ink-700: var(--color-ink-700);
+  --color-ink-800: var(--color-ink-800);
+  --color-ink-900: var(--color-ink-900);
+
+  --color-background: var(--color-background);
+  --color-surface: var(--color-surface);
+  --color-foreground: var(--color-foreground);
+  --color-muted: var(--color-muted);
+  --color-border: var(--color-border);
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-secondary: var(--color-secondary);
+  --color-secondary-foreground: var(--color-secondary-foreground);
+  --color-danger: var(--color-danger);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  --font-sans: var(--font-poppins);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+@layer components {
+  .input {
+    @apply rounded-md border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary;
+  }
 }
