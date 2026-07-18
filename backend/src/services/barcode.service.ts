@@ -38,3 +38,18 @@ export function generateBarcodeSvg(ean13: string): string {
   JsBarcode(svgNode, ean13, { ...RENDER_OPTIONS, xmlDocument: document });
   return new XMLSerializer().serializeToString(svgNode);
 }
+
+/** Renders an invoice number as a CODE128 barcode PNG for the invoice footer (not an EAN-13 product code, so a different symbology). */
+export function generateInvoiceBarcodePng(invoiceNumber: string): Buffer {
+  const canvas = createCanvas(320, 100);
+  JsBarcode(canvas, invoiceNumber, {
+    format: "CODE128",
+    lineColor: "#1a1817",
+    width: 1.5,
+    height: 60,
+    displayValue: true,
+    fontSize: 12,
+    margin: 8,
+  });
+  return canvas.toBuffer("image/png");
+}

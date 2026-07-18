@@ -22,7 +22,13 @@
       "Bash(curl -s -b /tmp/cookies12.txt -X PATCH http://localhost:5000/api/settings -H \"Content-Type: application/json\" -d '{\"primaryColor\":\"#1a73e8\",\"secondaryColor\":\"#34a853\"}')",
       "Bash(curl -s -i -b /tmp/cookies12.txt -X PATCH http://localhost:5000/api/settings -H \"Content-Type: application/json\" -d '{\"primaryColor\":\"notahex\"}')",
       "Bash(curl -s -o /dev/null -w \"login page: %{http_code}\\\\n\" -m 15 \"http://localhost:3000/login\")",
-      "Bash(curl -s -o /dev/null -w \"dashboard: %{http_code}\\\\n\" -m 15 \"http://localhost:3000/dashboard\")"
+      "Bash(curl -s -o /dev/null -w \"dashboard: %{http_code}\\\\n\" -m 15 \"http://localhost:3000/dashboard\")",
+      "Bash(curl -s -b /tmp/cookies13.txt -X POST http://localhost:5000/api/carts/b8bb351a-a813-4527-b785-0c791f993a6e/items -H 'Content-Type: application/json' -d '{\"ean13\":\"8901100101012\",\"quantity\":3}')",
+      "Bash(curl -s -b /tmp/cookies13.txt -X POST http://localhost:5000/api/carts/b8bb351a-a813-4527-b785-0c791f993a6e/items -H 'Content-Type: application/json' -d '{\"ean13\":\"8901100101012\",\"quantity\":2}')",
+      "Bash(curl -s -b /tmp/cookies13.txt -X PATCH http://localhost:5000/api/carts/b8bb351a-a813-4527-b785-0c791f993a6e -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s -b /tmp/cookies13.txt -X PATCH \"http://localhost:5000/api/products/6a5b35e7ab2ab6fbdd89f026\" -H \"Content-Type: application/json\" -d '{\"sellingPrice\": 45, \"costPrice\": 30}')",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -b /tmp/cookies16.txt http://localhost:5000/api/carts)"
     ],
     "additionalDirectories": [
       "\\tmp"

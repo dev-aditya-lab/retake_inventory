@@ -2,9 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { playBeep } from "@/lib/playBeep";
 
 const DUPLICATE_SUPPRESS_MS = 2000;
+
+// Decoding every video frame is expensive CPU work and makes the preview
+// itself look janky. A few attempts per second is plenty for reading a
+// barcode a user is holding up to the camera.
+const DELAY_BETWEEN_SCAN_ATTEMPTS_MS = 300;
+
+// We only ever need to recognize EAN-13 — restricting the format cuts the
+// per-frame work further (no point trying every barcode symbology).
+const HINTS = new Map([[DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13]]]);
 
 /** Live camera viewfinder that decodes barcodes via the device camera — for phones/tablets without a HID scanner. */
 export function CameraScanner({ onScan }: { onScan: (code: string) => void }) {
@@ -35,21 +45,27 @@ export function CameraScanner({ onScan }: { onScan: (code: string) => void }) {
     const timer = setTimeout(() => {
       if (stopped) return;
 
-      const reader = new BrowserMultiFormatReader();
+      const reader = new BrowserMultiFormatReader(HINTS, {
+        delayBetweenScanAttempts: DELAY_BETWEEN_SCAN_ATTEMPTS_MS,
+      });
       let lastCode = "";
       let lastScanTime = 0;
 
       reader
-        .decodeFromConstraints({ video: { facingMode: "environment" } }, video, (result) => {
-          if (stopped || !result) return;
-          const code = result.getText();
-          const now = Date.now();
-          if (code === lastCode && now - lastScanTime < DUPLICATE_SUPPRESS_MS) return;
-          lastCode = code;
-          lastScanTime = now;
-          playBeep();
-          onScanRef.current(code);
-        })
+        .decodeFromConstraints(
+          { video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } } },
+          video,
+          (result) => {
+            if (stopped || !result) return;
+            const code = result.getText();
+            const now = Date.now();
+            if (code === lastCode && now - lastScanTime < DUPLICATE_SUPPRESS_MS) return;
+            lastCode = code;
+            lastScanTime = now;
+            playBeep();
+            onScanRef.current(code);
+          },
+        )
         .then((c) => {
           if (stopped) {
             c.stop();
