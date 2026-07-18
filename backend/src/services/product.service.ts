@@ -1,6 +1,7 @@
 import { Product } from "../models/Product.model";
 import { StockMovement } from "../models/StockMovement.model";
-import { buildEan12, buildEan13, computeEan13CheckDigit } from "../utils/barcode";
+import { buildEan12, computeEan13CheckDigit, isValidEan13 } from "../utils/barcode";
+import { buildSku } from "../utils/sku";
 import { ApiError } from "../utils/ApiError";
 import type { ProductType } from "../config/barcodeScheme";
 import { PRODUCT_CODES } from "../config/barcodeScheme";
@@ -11,7 +12,10 @@ export interface CreateProductInput {
   type: ProductType;
   weightLabel: string;
   variant?: string;
-  sku: string;
+  /** A pre-existing barcode (e.g. scanned from a third-party product) — skips Retake's own EAN-13 generation. */
+  barcode?: string;
+  /** Required for external products (no reliable code mapping); auto-generated for Retake's own products if omitted. */
+  sku?: string;
   hsnCode?: string;
   image?: string;
   costPrice?: number;
@@ -22,31 +26,51 @@ export interface CreateProductInput {
 }
 
 export async function createProduct(input: CreateProductInput) {
-  const productId = PRODUCT_CODES[input.name];
-  if (productId === undefined) {
-    throw ApiError.badRequest(
-      `"${input.name}" is not in the barcode scheme yet — add it to backend/src/config/barcodeScheme.ts (PRODUCT_CODES) first`,
-    );
+  let productId: number | undefined;
+  let ean12: string | undefined;
+  let ean13: string;
+  let barcodeSource: "generated" | "external";
+  let sku = input.sku?.trim();
+
+  if (input.barcode) {
+    if (!isValidEan13(input.barcode)) {
+      throw ApiError.badRequest(`"${input.barcode}" is not a valid EAN-13 barcode`);
+    }
+    if (!sku) {
+      throw ApiError.badRequest("SKU is required for external (non-Retake-scheme) products");
+    }
+    ean13 = input.barcode;
+    barcodeSource = "external";
+  } else {
+    productId = PRODUCT_CODES[input.name];
+    if (productId === undefined) {
+      throw ApiError.badRequest(
+        `"${input.name}" is not in the barcode scheme yet — add it to backend/src/config/barcodeScheme.ts (PRODUCT_CODES), or scan/provide an explicit barcode for a non-Retake product`,
+      );
+    }
+    ean12 = buildEan12({
+      productName: input.name,
+      type: input.type,
+      weightLabel: input.weightLabel,
+      variant: input.variant,
+    });
+    ean13 = ean12 + computeEan13CheckDigit(ean12);
+    barcodeSource = "generated";
+    if (!sku) {
+      sku = buildSku(input.name, input.type, input.weightLabel);
+    }
   }
 
-  const ean12 = buildEan12({
-    productName: input.name,
-    type: input.type,
-    weightLabel: input.weightLabel,
-    variant: input.variant,
-  });
-  const ean13 = ean12 + computeEan13CheckDigit(ean12);
-
-  const existingSku = await Product.findOne({ sku: input.sku.toUpperCase() });
+  const existingSku = await Product.findOne({ sku: sku.toUpperCase() });
   if (existingSku) {
-    throw ApiError.conflict(`SKU "${input.sku}" is already in use`);
+    throw ApiError.conflict(`SKU "${sku}" is already in use`);
   }
   const existingBarcode = await Product.findOne({ ean13 });
   if (existingBarcode) {
-    throw ApiError.conflict(`A product with barcode ${ean13} already exists (same name/type/weight)`);
+    throw ApiError.conflict(`A product with barcode ${ean13} already exists`);
   }
 
-  return Product.create({ ...input, productId, ean12, ean13 });
+  return Product.create({ ...input, sku, productId, ean12, ean13, barcodeSource });
 }
 
 export interface ProductListFilters {

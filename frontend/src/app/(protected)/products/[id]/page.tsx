@@ -3,6 +3,8 @@
 import { use, useState, type FormEvent } from "react";
 import Image from "next/image";
 import { useGetProductQuery, useUpdateProductMutation, useAdjustStockMutation } from "@/lib/redux/features/products/productsApi";
+import { BarcodePanel } from "@/components/scanner/BarcodePanel";
+import { ExternalBarcodeBadge } from "@/components/ExternalBarcodeBadge";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -16,8 +18,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       <div className="flex items-center gap-3">
         <Image src={product.image} alt={product.name} width={64} height={64} className="rounded-md object-cover" />
         <div>
-          <h1 className="text-xl font-semibold text-foreground">
+          <h1 className="flex items-center gap-2 text-xl font-semibold text-foreground">
             {product.name} · {product.type} · {product.weightLabel}
+            {product.barcodeSource === "external" && <ExternalBarcodeBadge />}
           </h1>
           <p className="text-sm text-muted">
             SKU {product.sku} · Barcode {product.ean13}
@@ -26,8 +29,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       <StockCard productId={product._id} quantityInStock={product.quantityInStock} lowStockThreshold={product.lowStockThreshold} />
+      <BarcodePanel key={`barcode-${product._id}`} productId={product._id} sku={product.sku} ean13={product.ean13} />
       <EditForm
-        key={product._id}
+        key={`edit-${product._id}`}
         productId={product._id}
         category={product.category}
         hsnCode={product.hsnCode}

@@ -1,15 +1,18 @@
 export type ProductType = "Whole" | "Powder" | "Blend";
 
+export type BarcodeSource = "generated" | "external";
+
 export interface Product {
   _id: string;
   category: string;
   name: string;
-  productId: number;
+  productId?: number;
   type: ProductType;
   weightLabel: string;
   sku: string;
-  ean12: string;
+  ean12?: string;
   ean13: string;
+  barcodeSource: BarcodeSource;
   hsnCode: string;
   image: string;
   costPrice: number;

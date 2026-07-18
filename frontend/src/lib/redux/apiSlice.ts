@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery, type BaseQueryFn, type FetchArgs, type FetchBaseQueryError } from "@reduxjs/toolkit/query/react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
 export interface ApiEnvelope<T> {
   success: boolean;

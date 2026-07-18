@@ -6,7 +6,11 @@ export const createProductSchema = z.object({
   type: z.enum(["Whole", "Powder", "Blend"]),
   weightLabel: z.string().trim().min(1),
   variant: z.string().regex(/^\d{2}$/).optional(),
-  sku: z.string().trim().min(1), // no reliable auto-abbreviation from product name — admin supplies it
+  // A pre-existing (e.g. third-party) barcode scanned in as-is. When set, Retake's
+  // EAN-13 generation is skipped entirely and this becomes the product's barcode.
+  barcode: z.string().regex(/^\d{13}$/, "Must be a 13-digit EAN-13 code").optional(),
+  // Required for external products; auto-generated from the SKU scheme for Retake's own products if omitted.
+  sku: z.string().trim().min(1).optional(),
   hsnCode: z.string().trim().optional(),
   image: z.string().url().optional(),
   costPrice: z.number().min(0).optional(),

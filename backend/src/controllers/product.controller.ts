@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 import * as productService from "../services/product.service";
+import { generateBarcodePng, generateBarcodeSvg } from "../services/barcode.service";
+import { decodeEan13 } from "../utils/barcode";
 import { ApiError } from "../utils/ApiError";
 import type { ProductType } from "../config/barcodeScheme";
 
@@ -38,4 +40,25 @@ export async function adjustStock(req: Request, res: Response): Promise<void> {
   if (!req.user) throw ApiError.unauthorized();
   const product = await productService.adjustStock(req.params.id as string, req.user.id, req.body);
   res.json({ success: true, data: product });
+}
+
+export async function getProductBarcodeImage(req: Request, res: Response): Promise<void> {
+  const product = await productService.getProductById(req.params.id as string);
+  const format = req.query.format === "svg" ? "svg" : "png";
+
+  if (format === "svg") {
+    const svg = generateBarcodeSvg(product.ean13);
+    res.setHeader("Content-Disposition", `inline; filename="${product.sku}.svg"`);
+    res.type("image/svg+xml").send(svg);
+    return;
+  }
+
+  const png = generateBarcodePng(product.ean13);
+  res.setHeader("Content-Disposition", `inline; filename="${product.sku}.png"`);
+  res.type("image/png").send(png);
+}
+
+export async function decodeBarcode(req: Request, res: Response): Promise<void> {
+  const decoded = decodeEan13(req.params.ean13 as string);
+  res.json({ success: true, data: decoded });
 }

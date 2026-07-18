@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -b /tmp/cookies6.txt \"http://localhost:5000/api/products/barcode/8901300101010\" -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -b /tmp/cookies6.txt \"http://localhost:5000/api/products/barcode/decode/8901300101010\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('version',j.version\\);console.log\\('types',j.types||j.typings\\)}\\)\")",
+      "Bash(cp /tmp/barcode.svg \"C:\\\\Users\\\\ad112\\\\AppData\\\\Local\\\\Temp\\\\barcode.svg\" *)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>c;d+=c\\);process.stdin.on\\('end',\\(\\)=>{console.log\\(JSON.parse\\(d\\).data[0]._id\\)}\\)\")",
+      "Bash(curl -s -b /tmp/cookies8.txt \"http://localhost:5000/api/products?search=RTK-TUR-WH-025\")",
+      "Bash(curl -s -c /tmp/cookies10.txt -X POST http://localhost:5000/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@retake.local\",\"password\":\"ChangeMe123!\"}')",
+      "Bash(curl -s -b /tmp/cookies10.txt \"http://localhost:5000/api/products/barcode/decode/8901198204060\" -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -b /tmp/cookies10.txt \"http://localhost:5000/api/products/barcode/8901198204060\" -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -b /tmp/cookies10.txt -X POST http://localhost:5000/api/products -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s -o /dev/null -w \"barcode page: %{http_code}\\\\n\" -m 15 \"http://localhost:3000/barcode\")",
+      "Bash(curl -s -o /dev/null -w \"add product page: %{http_code}\\\\n\" -m 15 \"http://localhost:3000/products/new?barcode=8901198204060\")",
+      "Bash(curl -s -o /dev/null -w \"external product detail: %{http_code}\\\\n\" -m 15 \"http://localhost:3000/products/6a5b5469365338a88c9e7ce2\")",
+      "Bash(curl -s -c /tmp/cookies11.txt -X POST http://localhost:5000/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@retake.local\",\"password\":\"ChangeMe123!\"}')",
+      "Bash(curl -s -X POST http://localhost:5000/api/products -b /tmp/cookies11.txt -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s http://localhost:5000/api/settings)",
+      "Bash(curl -s -i -X PATCH http://localhost:5000/api/settings -H \"Content-Type: application/json\" -d '{\"primaryColor\":\"#123456\"}')",
+      "Bash(curl -s -c /tmp/cookies12.txt -X POST http://localhost:5000/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@retake.local\",\"password\":\"ChangeMe123!\"}')",
+      "Bash(curl -s -b /tmp/cookies12.txt -X PATCH http://localhost:5000/api/settings -H \"Content-Type: application/json\" -d '{\"primaryColor\":\"#1a73e8\",\"secondaryColor\":\"#34a853\"}')",
+      "Bash(curl -s -i -b /tmp/cookies12.txt -X PATCH http://localhost:5000/api/settings -H \"Content-Type: application/json\" -d '{\"primaryColor\":\"notahex\"}')",
+      "Bash(curl -s -o /dev/null -w \"login page: %{http_code}\\\\n\" -m 15 \"http://localhost:3000/login\")",
+      "Bash(curl -s -o /dev/null -w \"dashboard: %{http_code}\\\\n\" -m 15 \"http://localhost:3000/dashboard\")"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

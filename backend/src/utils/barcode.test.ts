@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEan12, buildEan13, computeEan13CheckDigit, isValidEan13 } from "./barcode";
+import { buildEan12, buildEan13, computeEan13CheckDigit, decodeEan13, isValidEan13 } from "./barcode";
 
 describe("computeEan13CheckDigit", () => {
   it("matches the worked example from project.md", () => {
@@ -46,6 +46,38 @@ describe("buildEan12 / buildEan13", () => {
 
   it("throws for an unknown weight label", () => {
     expect(() => buildEan12({ productName: "Turmeric", type: "Whole", weightLabel: "999g" })).toThrow();
+  });
+});
+
+describe("decodeEan13", () => {
+  it("round-trips buildEan13 for a single spice", () => {
+    const ean13 = buildEan13({ productName: "Red Chilli", type: "Powder", weightLabel: "200g" });
+    expect(decodeEan13(ean13)).toEqual({
+      type: "Powder",
+      productName: "Red Chilli",
+      productId: 2,
+      weightLabel: "200g",
+      variant: "01",
+    });
+  });
+
+  it("round-trips buildEan13 for a blend", () => {
+    const ean13 = buildEan13({ productName: "Kitchen King", type: "Blend", weightLabel: "50g" });
+    expect(decodeEan13(ean13)).toEqual({
+      type: "Blend",
+      productName: "Kitchen King",
+      productId: 102,
+      weightLabel: "50g",
+      variant: "01",
+    });
+  });
+
+  it("throws for a code outside Retake's country prefix", () => {
+    expect(() => decodeEan13("4006381333931")).toThrow();
+  });
+
+  it("throws for a malformed code", () => {
+    expect(() => decodeEan13("not-a-barcode")).toThrow();
   });
 });
 

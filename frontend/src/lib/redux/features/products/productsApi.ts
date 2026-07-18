@@ -1,6 +1,19 @@
 import { apiSlice, unwrap } from "../../apiSlice";
 import type { Product, ProductType } from "@/types/product";
 
+export interface DecodedBarcode {
+  type: ProductType;
+  productName: string;
+  productId: number;
+  weightLabel: string;
+  variant: string;
+}
+
+/** Path builder for a product's on-demand-rendered barcode image — fetched via authenticatedFetch, not RTK Query (a Blob doesn't belong in serializable Redux state). */
+export function productBarcodePath(id: string, format: "png" | "svg" = "png"): string {
+  return `/api/products/${id}/barcode?format=${format}`;
+}
+
 export interface ProductListFilters {
   search?: string;
   category?: string;
@@ -13,7 +26,10 @@ interface CreateProductInput {
   name: string;
   type: ProductType;
   weightLabel: string;
-  sku: string;
+  /** A pre-existing barcode (e.g. scanned from a third-party product) — skips Retake's own EAN-13 generation. */
+  barcode?: string;
+  /** Required for external products; auto-generated from the SKU scheme for Retake's own products if omitted. */
+  sku?: string;
   hsnCode?: string;
   costPrice?: number;
   sellingPrice?: number;
@@ -67,6 +83,10 @@ export const productsApi = apiSlice.injectEndpoints({
       query: (ean13) => `/api/products/barcode/${ean13}`,
       transformResponse: unwrap<Product>,
     }),
+    decodeBarcode: builder.query<DecodedBarcode, string>({
+      query: (ean13) => `/api/products/barcode/decode/${ean13}`,
+      transformResponse: unwrap<DecodedBarcode>,
+    }),
     createProduct: builder.mutation<Product, CreateProductInput>({
       query: (body) => ({ url: "/api/products", method: "POST", body }),
       transformResponse: unwrap<Product>,
@@ -89,6 +109,7 @@ export const {
   useListProductsQuery,
   useGetProductQuery,
   useLazyGetProductByBarcodeQuery,
+  useLazyDecodeBarcodeQuery,
   useCreateProductMutation,
   useUpdateProductMutation,
   useAdjustStockMutation,

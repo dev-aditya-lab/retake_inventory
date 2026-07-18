@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Plus, Search } from "lucide-react";
 import { useListProductsQuery } from "@/lib/redux/features/products/productsApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { ExternalBarcodeBadge } from "@/components/ExternalBarcodeBadge";
 import { PRODUCT_TYPES, type ProductType } from "@/types/product";
 
 export default function ProductsPage() {
@@ -75,8 +76,11 @@ export default function ProductsPage() {
               >
                 <Image src={p.image} alt={p.name} width={48} height={48} className="rounded-md object-cover" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {p.name} · {p.type} · {p.weightLabel}
+                  <p className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+                    <span className="truncate">
+                      {p.name} · {p.type} · {p.weightLabel}
+                    </span>
+                    {p.barcodeSource === "external" && <ExternalBarcodeBadge />}
                   </p>
                   <p className="truncate text-xs text-muted">{p.sku}</p>
                 </div>

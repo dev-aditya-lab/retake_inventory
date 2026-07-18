@@ -1,24 +1,58 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { useCreateProductMutation } from "@/lib/redux/features/products/productsApi";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Tag } from "lucide-react";
+import { useCreateProductMutation, useLazyDecodeBarcodeQuery } from "@/lib/redux/features/products/productsApi";
+import { ScannerInput } from "@/components/scanner/ScannerInput";
 import { PRODUCT_TYPES, WEIGHT_LABELS, type ProductType } from "@/types/product";
+
+const EAN13_SHAPE = /^\d{13}$/;
+
+function isProductType(value: string | null): value is ProductType {
+  return !!value && (PRODUCT_TYPES as string[]).includes(value);
+}
 
 export default function NewProductPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [createProduct, { isLoading }] = useCreateProductMutation();
 
   const [category, setCategory] = useState("Single Spice");
-  const [name, setName] = useState("");
-  const [type, setType] = useState<ProductType>("Whole");
-  const [weightLabel, setWeightLabel] = useState("100g");
+  const [name, setName] = useState(searchParams.get("name") ?? "");
+  const [type, setType] = useState<ProductType>(
+    isProductType(searchParams.get("type")) ? (searchParams.get("type") as ProductType) : "Whole",
+  );
+  const [weightLabel, setWeightLabel] = useState(searchParams.get("weightLabel") ?? "100g");
   const [sku, setSku] = useState("");
   const [hsnCode, setHsnCode] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [externalBarcode, setExternalBarcode] = useState<string | null>(
+    EAN13_SHAPE.test(searchParams.get("barcode") ?? "") ? searchParams.get("barcode") : null,
+  );
+  const [decodeBarcode] = useLazyDecodeBarcodeQuery();
+
+  async function handleScanToPrefill(code: string) {
+    setScanError(null);
+    try {
+      const decoded = await decodeBarcode(code).unwrap();
+      setExternalBarcode(null);
+      setName(decoded.productName);
+      setType(decoded.type);
+      setWeightLabel(decoded.weightLabel);
+    } catch {
+      if (EAN13_SHAPE.test(code)) {
+        // Well-formed EAN-13, just not Retake's scheme — treat as a third-party product's own barcode.
+        setExternalBarcode(code);
+      } else {
+        setScanError(`"${code}" isn't a valid barcode — fill in the details manually.`);
+      }
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -29,7 +63,8 @@ export default function NewProductPage() {
         name,
         type,
         weightLabel,
-        sku,
+        barcode: externalBarcode ?? undefined,
+        sku: sku || undefined,
         hsnCode: hsnCode || undefined,
         costPrice: costPrice ? Number(costPrice) : undefined,
         sellingPrice: sellingPrice ? Number(sellingPrice) : undefined,
@@ -48,12 +83,40 @@ export default function NewProductPage() {
   return (
     <div className="mx-auto max-w-lg">
       <h1 className="text-2xl font-semibold text-foreground">Add product</h1>
-      <p className="mt-1 text-sm text-muted">
-        The product name must match Retake&apos;s barcode scheme (see the product catalog spec) so its
-        EAN-13 can be generated automatically.
-      </p>
+      {externalBarcode ? (
+        <p className="mt-1 text-sm text-muted">
+          Not one of Retake&apos;s own products — the scanned code will be used as its barcode as-is.
+        </p>
+      ) : (
+        <p className="mt-1 text-sm text-muted">
+          The product name must match Retake&apos;s barcode scheme (see the product catalog spec) so its
+          EAN-13 can be generated automatically.
+        </p>
+      )}
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+      {externalBarcode && (
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Tag size={16} aria-hidden />
+            External barcode: {externalBarcode}
+          </div>
+          <button
+            type="button"
+            onClick={() => setExternalBarcode(null)}
+            className="text-xs font-medium text-muted underline"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+
+      <div className="mt-4 rounded-lg border border-border bg-surface p-3">
+        <p className="mb-2 text-sm font-medium text-foreground">Scan to prefill</p>
+        <ScannerInput onScan={handleScanToPrefill} autoFocus={false} />
+        {scanError && <p className="mt-2 text-sm text-danger">{scanError}</p>}
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
         <Field label="Product name">
           <input
             required
@@ -89,12 +152,12 @@ export default function NewProductPage() {
               ))}
             </select>
           </Field>
-          <Field label="SKU">
+          <Field label={externalBarcode ? "SKU" : "SKU (optional)"}>
             <input
-              required
+              required={!!externalBarcode}
               value={sku}
               onChange={(e) => setSku(e.target.value.toUpperCase())}
-              placeholder="RTK-TUR-WH-100"
+              placeholder={externalBarcode ? "EXT-..." : "Auto-generated if left blank"}
               className="input"
             />
           </Field>

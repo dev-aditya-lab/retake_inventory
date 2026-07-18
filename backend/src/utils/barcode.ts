@@ -72,3 +72,44 @@ export function isValidEan13(code: string): boolean {
   const base = code.slice(0, 12);
   return computeEan13CheckDigit(base) === code[12];
 }
+
+export interface DecodedBarcode {
+  type: ProductType;
+  productName: string;
+  productId: number;
+  weightLabel: string;
+  variant: string;
+}
+
+/** Reverses buildEan13: pulls the product/type/weight back out of a scanned Retake barcode. */
+export function decodeEan13(code: string): DecodedBarcode {
+  if (!isValidEan13(code)) {
+    throw ApiError.badRequest(`"${code}" is not a valid EAN-13 barcode (bad length or check digit)`);
+  }
+  if (!code.startsWith(COUNTRY_CODE)) {
+    throw ApiError.badRequest(`"${code}" doesn't use Retake's country prefix (${COUNTRY_CODE})`);
+  }
+
+  const typeCode = code.slice(3, 5);
+  const productCode = code.slice(5, 8);
+  const weightCode = code.slice(8, 10);
+  const variant = code.slice(10, 12);
+
+  const type = (Object.entries(TYPE_CODES).find(([, v]) => v === typeCode)?.[0] as ProductType | undefined);
+  if (!type) {
+    throw ApiError.badRequest(`"${code}" has an unrecognized type code "${typeCode}"`);
+  }
+
+  const productId = Number(productCode);
+  const productName = Object.entries(PRODUCT_CODES).find(([, v]) => v === productId)?.[0];
+  if (!productName) {
+    throw ApiError.badRequest(`"${code}" has an unrecognized product code "${productCode}"`);
+  }
+
+  const weightLabel = Object.entries(WEIGHT_CODES).find(([, v]) => v === weightCode)?.[0];
+  if (!weightLabel) {
+    throw ApiError.badRequest(`"${code}" has an unrecognized weight code "${weightCode}"`);
+  }
+
+  return { type, productName, productId, weightLabel, variant };
+}

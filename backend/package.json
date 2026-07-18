@@ -18,6 +18,7 @@
   "type": "commonjs",
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
+    "@xmldom/xmldom": "^0.9.10",
     "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "canvas": "^3.2.3",
@@ -59,6 +60,7 @@
     "vitest": "^4.1.10"
   },
   "allowScripts": {
-    "esbuild@0.28.1": true
+    "esbuild@0.28.1": true,
+    "canvas@3.2.3": true
   }
 }
