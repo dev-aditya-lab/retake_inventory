@@ -49,9 +49,9 @@ COPY --chown=node:node --from=prod-deps /app/node_modules ./node_modules
 COPY --chown=node:node --from=build /app/dist ./dist
 
 USER node
-EXPOSE 5000
+EXPOSE 8801
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "fetch('http://localhost:'+(process.env.PORT||5000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://localhost:'+(process.env.PORT||8801)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "dist/index.js"]
