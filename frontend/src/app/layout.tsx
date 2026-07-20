@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next"
 import { Poppins } from "next/font/google";
 import { company } from "@/config/company";
 import { ReduxProvider } from "@/lib/redux/Providers";
@@ -42,7 +43,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${poppins.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans">
-        <ReduxProvider>{children}</ReduxProvider>
+        <ReduxProvider>
+        <Analytics/>
+        {children}
+        </ReduxProvider>
       </body>
     </html>
   );

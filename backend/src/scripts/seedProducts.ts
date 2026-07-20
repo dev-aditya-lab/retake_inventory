@@ -17,7 +17,7 @@ interface ProductCsvRow {
   "EAN-12": string;
 }
 
-const CSV_PATH = path.resolve(__dirname, "../../../.claude/project info/product.csv");
+const CSV_PATH = path.resolve(__dirname, "../assets/product.csv");
 
 /**
  * Seeds the product catalog from `.claude/project info/product.csv`.

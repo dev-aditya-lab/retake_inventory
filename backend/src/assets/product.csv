@@ -1,0 +1,331 @@
+Category,Product,Product ID,Type,Weight,SKU,EAN-12
+Single Spice,Turmeric,1,Whole,25g,RTK-TUR-WH-025,890110010101
+Single Spice,Turmeric,1,Whole,50g,RTK-TUR-WH-050,890110010201
+Single Spice,Turmeric,1,Whole,100g,RTK-TUR-WH-100,890110010301
+Single Spice,Turmeric,1,Whole,200g,RTK-TUR-WH-200,890110010401
+Single Spice,Turmeric,1,Whole,250g,RTK-TUR-WH-250,890110010501
+Single Spice,Turmeric,1,Powder,25g,RTK-TUR-PW-025,890120010101
+Single Spice,Turmeric,1,Powder,50g,RTK-TUR-PW-050,890120010201
+Single Spice,Turmeric,1,Powder,100g,RTK-TUR-PW-100,890120010301
+Single Spice,Turmeric,1,Powder,200g,RTK-TUR-PW-200,890120010401
+Single Spice,Turmeric,1,Powder,250g,RTK-TUR-PW-250,890120010501
+Single Spice,Red Chilli,2,Whole,25g,RTK-RCP-WH-025,890110020101
+Single Spice,Red Chilli,2,Whole,50g,RTK-RCP-WH-050,890110020201
+Single Spice,Red Chilli,2,Whole,100g,RTK-RCP-WH-100,890110020301
+Single Spice,Red Chilli,2,Whole,200g,RTK-RCP-WH-200,890110020401
+Single Spice,Red Chilli,2,Whole,250g,RTK-RCP-WH-250,890110020501
+Single Spice,Red Chilli,2,Powder,25g,RTK-RCP-PW-025,890120020101
+Single Spice,Red Chilli,2,Powder,50g,RTK-RCP-PW-050,890120020201
+Single Spice,Red Chilli,2,Powder,100g,RTK-RCP-PW-100,890120020301
+Single Spice,Red Chilli,2,Powder,200g,RTK-RCP-PW-200,890120020401
+Single Spice,Red Chilli,2,Powder,250g,RTK-RCP-PW-250,890120020501
+Single Spice,Coriander,3,Whole,25g,RTK-COR-WH-025,890110030101
+Single Spice,Coriander,3,Whole,50g,RTK-COR-WH-050,890110030201
+Single Spice,Coriander,3,Whole,100g,RTK-COR-WH-100,890110030301
+Single Spice,Coriander,3,Whole,200g,RTK-COR-WH-200,890110030401
+Single Spice,Coriander,3,Whole,250g,RTK-COR-WH-250,890110030501
+Single Spice,Coriander,3,Powder,25g,RTK-COR-PW-025,890120030101
+Single Spice,Coriander,3,Powder,50g,RTK-COR-PW-050,890120030201
+Single Spice,Coriander,3,Powder,100g,RTK-COR-PW-100,890120030301
+Single Spice,Coriander,3,Powder,200g,RTK-COR-PW-200,890120030401
+Single Spice,Coriander,3,Powder,250g,RTK-COR-PW-250,890120030501
+Single Spice,Cumin,4,Whole,25g,RTK-CUM-WH-025,890110040101
+Single Spice,Cumin,4,Whole,50g,RTK-CUM-WH-050,890110040201
+Single Spice,Cumin,4,Whole,100g,RTK-CUM-WH-100,890110040301
+Single Spice,Cumin,4,Whole,200g,RTK-CUM-WH-200,890110040401
+Single Spice,Cumin,4,Whole,250g,RTK-CUM-WH-250,890110040501
+Single Spice,Cumin,4,Powder,25g,RTK-CUM-PW-025,890120040101
+Single Spice,Cumin,4,Powder,50g,RTK-CUM-PW-050,890120040201
+Single Spice,Cumin,4,Powder,100g,RTK-CUM-PW-100,890120040301
+Single Spice,Cumin,4,Powder,200g,RTK-CUM-PW-200,890120040401
+Single Spice,Cumin,4,Powder,250g,RTK-CUM-PW-250,890120040501
+Single Spice,Fennel,5,Whole,25g,RTK-FEN-WH-025,890110050101
+Single Spice,Fennel,5,Whole,50g,RTK-FEN-WH-050,890110050201
+Single Spice,Fennel,5,Whole,100g,RTK-FEN-WH-100,890110050301
+Single Spice,Fennel,5,Whole,200g,RTK-FEN-WH-200,890110050401
+Single Spice,Fennel,5,Whole,250g,RTK-FEN-WH-250,890110050501
+Single Spice,Fennel,5,Powder,25g,RTK-FEN-PW-025,890120050101
+Single Spice,Fennel,5,Powder,50g,RTK-FEN-PW-050,890120050201
+Single Spice,Fennel,5,Powder,100g,RTK-FEN-PW-100,890120050301
+Single Spice,Fennel,5,Powder,200g,RTK-FEN-PW-200,890120050401
+Single Spice,Fennel,5,Powder,250g,RTK-FEN-PW-250,890120050501
+Single Spice,Black Pepper,6,Whole,25g,RTK-BLP-WH-025,890110060101
+Single Spice,Black Pepper,6,Whole,50g,RTK-BLP-WH-050,890110060201
+Single Spice,Black Pepper,6,Whole,100g,RTK-BLP-WH-100,890110060301
+Single Spice,Black Pepper,6,Whole,200g,RTK-BLP-WH-200,890110060401
+Single Spice,Black Pepper,6,Whole,250g,RTK-BLP-WH-250,890110060501
+Single Spice,Black Pepper,6,Powder,25g,RTK-BLP-PW-025,890120060101
+Single Spice,Black Pepper,6,Powder,50g,RTK-BLP-PW-050,890120060201
+Single Spice,Black Pepper,6,Powder,100g,RTK-BLP-PW-100,890120060301
+Single Spice,Black Pepper,6,Powder,200g,RTK-BLP-PW-200,890120060401
+Single Spice,Black Pepper,6,Powder,250g,RTK-BLP-PW-250,890120060501
+Single Spice,Green Cardamom,7,Whole,25g,RTK-GCD-WH-025,890110070101
+Single Spice,Green Cardamom,7,Whole,50g,RTK-GCD-WH-050,890110070201
+Single Spice,Green Cardamom,7,Whole,100g,RTK-GCD-WH-100,890110070301
+Single Spice,Green Cardamom,7,Whole,200g,RTK-GCD-WH-200,890110070401
+Single Spice,Green Cardamom,7,Whole,250g,RTK-GCD-WH-250,890110070501
+Single Spice,Green Cardamom,7,Powder,25g,RTK-GCD-PW-025,890120070101
+Single Spice,Green Cardamom,7,Powder,50g,RTK-GCD-PW-050,890120070201
+Single Spice,Green Cardamom,7,Powder,100g,RTK-GCD-PW-100,890120070301
+Single Spice,Green Cardamom,7,Powder,200g,RTK-GCD-PW-200,890120070401
+Single Spice,Green Cardamom,7,Powder,250g,RTK-GCD-PW-250,890120070501
+Single Spice,Black Cardamom,8,Whole,25g,RTK-BCD-WH-025,890110080101
+Single Spice,Black Cardamom,8,Whole,50g,RTK-BCD-WH-050,890110080201
+Single Spice,Black Cardamom,8,Whole,100g,RTK-BCD-WH-100,890110080301
+Single Spice,Black Cardamom,8,Whole,200g,RTK-BCD-WH-200,890110080401
+Single Spice,Black Cardamom,8,Whole,250g,RTK-BCD-WH-250,890110080501
+Single Spice,Black Cardamom,8,Powder,25g,RTK-BCD-PW-025,890120080101
+Single Spice,Black Cardamom,8,Powder,50g,RTK-BCD-PW-050,890120080201
+Single Spice,Black Cardamom,8,Powder,100g,RTK-BCD-PW-100,890120080301
+Single Spice,Black Cardamom,8,Powder,200g,RTK-BCD-PW-200,890120080401
+Single Spice,Black Cardamom,8,Powder,250g,RTK-BCD-PW-250,890120080501
+Single Spice,Cinnamon,9,Whole,25g,RTK-CIN-WH-025,890110090101
+Single Spice,Cinnamon,9,Whole,50g,RTK-CIN-WH-050,890110090201
+Single Spice,Cinnamon,9,Whole,100g,RTK-CIN-WH-100,890110090301
+Single Spice,Cinnamon,9,Whole,200g,RTK-CIN-WH-200,890110090401
+Single Spice,Cinnamon,9,Whole,250g,RTK-CIN-WH-250,890110090501
+Single Spice,Cinnamon,9,Powder,25g,RTK-CIN-PW-025,890120090101
+Single Spice,Cinnamon,9,Powder,50g,RTK-CIN-PW-050,890120090201
+Single Spice,Cinnamon,9,Powder,100g,RTK-CIN-PW-100,890120090301
+Single Spice,Cinnamon,9,Powder,200g,RTK-CIN-PW-200,890120090401
+Single Spice,Cinnamon,9,Powder,250g,RTK-CIN-PW-250,890120090501
+Single Spice,Clove,10,Whole,25g,RTK-CLV-WH-025,890110100101
+Single Spice,Clove,10,Whole,50g,RTK-CLV-WH-050,890110100201
+Single Spice,Clove,10,Whole,100g,RTK-CLV-WH-100,890110100301
+Single Spice,Clove,10,Whole,200g,RTK-CLV-WH-200,890110100401
+Single Spice,Clove,10,Whole,250g,RTK-CLV-WH-250,890110100501
+Single Spice,Clove,10,Powder,25g,RTK-CLV-PW-025,890120100101
+Single Spice,Clove,10,Powder,50g,RTK-CLV-PW-050,890120100201
+Single Spice,Clove,10,Powder,100g,RTK-CLV-PW-100,890120100301
+Single Spice,Clove,10,Powder,200g,RTK-CLV-PW-200,890120100401
+Single Spice,Clove,10,Powder,250g,RTK-CLV-PW-250,890120100501
+Single Spice,Bay Leaf,11,Whole,25g,RTK-BAY-WH-025,890110110101
+Single Spice,Bay Leaf,11,Whole,50g,RTK-BAY-WH-050,890110110201
+Single Spice,Bay Leaf,11,Whole,100g,RTK-BAY-WH-100,890110110301
+Single Spice,Bay Leaf,11,Whole,200g,RTK-BAY-WH-200,890110110401
+Single Spice,Bay Leaf,11,Whole,250g,RTK-BAY-WH-250,890110110501
+Single Spice,Bay Leaf,11,Powder,25g,RTK-BAY-PW-025,890120110101
+Single Spice,Bay Leaf,11,Powder,50g,RTK-BAY-PW-050,890120110201
+Single Spice,Bay Leaf,11,Powder,100g,RTK-BAY-PW-100,890120110301
+Single Spice,Bay Leaf,11,Powder,200g,RTK-BAY-PW-200,890120110401
+Single Spice,Bay Leaf,11,Powder,250g,RTK-BAY-PW-250,890120110501
+Single Spice,Star Anise,12,Whole,25g,RTK-STA-WH-025,890110120101
+Single Spice,Star Anise,12,Whole,50g,RTK-STA-WH-050,890110120201
+Single Spice,Star Anise,12,Whole,100g,RTK-STA-WH-100,890110120301
+Single Spice,Star Anise,12,Whole,200g,RTK-STA-WH-200,890110120401
+Single Spice,Star Anise,12,Whole,250g,RTK-STA-WH-250,890110120501
+Single Spice,Star Anise,12,Powder,25g,RTK-STA-PW-025,890120120101
+Single Spice,Star Anise,12,Powder,50g,RTK-STA-PW-050,890120120201
+Single Spice,Star Anise,12,Powder,100g,RTK-STA-PW-100,890120120301
+Single Spice,Star Anise,12,Powder,200g,RTK-STA-PW-200,890120120401
+Single Spice,Star Anise,12,Powder,250g,RTK-STA-PW-250,890120120501
+Single Spice,Nutmeg,13,Whole,25g,RTK-NUT-WH-025,890110130101
+Single Spice,Nutmeg,13,Whole,50g,RTK-NUT-WH-050,890110130201
+Single Spice,Nutmeg,13,Whole,100g,RTK-NUT-WH-100,890110130301
+Single Spice,Nutmeg,13,Whole,200g,RTK-NUT-WH-200,890110130401
+Single Spice,Nutmeg,13,Whole,250g,RTK-NUT-WH-250,890110130501
+Single Spice,Nutmeg,13,Powder,25g,RTK-NUT-PW-025,890120130101
+Single Spice,Nutmeg,13,Powder,50g,RTK-NUT-PW-050,890120130201
+Single Spice,Nutmeg,13,Powder,100g,RTK-NUT-PW-100,890120130301
+Single Spice,Nutmeg,13,Powder,200g,RTK-NUT-PW-200,890120130401
+Single Spice,Nutmeg,13,Powder,250g,RTK-NUT-PW-250,890120130501
+Single Spice,Mace,14,Whole,25g,RTK-MAC-WH-025,890110140101
+Single Spice,Mace,14,Whole,50g,RTK-MAC-WH-050,890110140201
+Single Spice,Mace,14,Whole,100g,RTK-MAC-WH-100,890110140301
+Single Spice,Mace,14,Whole,200g,RTK-MAC-WH-200,890110140401
+Single Spice,Mace,14,Whole,250g,RTK-MAC-WH-250,890110140501
+Single Spice,Mace,14,Powder,25g,RTK-MAC-PW-025,890120140101
+Single Spice,Mace,14,Powder,50g,RTK-MAC-PW-050,890120140201
+Single Spice,Mace,14,Powder,100g,RTK-MAC-PW-100,890120140301
+Single Spice,Mace,14,Powder,200g,RTK-MAC-PW-200,890120140401
+Single Spice,Mace,14,Powder,250g,RTK-MAC-PW-250,890120140501
+Single Spice,Mustard,15,Whole,25g,RTK-MUS-WH-025,890110150101
+Single Spice,Mustard,15,Whole,50g,RTK-MUS-WH-050,890110150201
+Single Spice,Mustard,15,Whole,100g,RTK-MUS-WH-100,890110150301
+Single Spice,Mustard,15,Whole,200g,RTK-MUS-WH-200,890110150401
+Single Spice,Mustard,15,Whole,250g,RTK-MUS-WH-250,890110150501
+Single Spice,Mustard,15,Powder,25g,RTK-MUS-PW-025,890120150101
+Single Spice,Mustard,15,Powder,50g,RTK-MUS-PW-050,890120150201
+Single Spice,Mustard,15,Powder,100g,RTK-MUS-PW-100,890120150301
+Single Spice,Mustard,15,Powder,200g,RTK-MUS-PW-200,890120150401
+Single Spice,Mustard,15,Powder,250g,RTK-MUS-PW-250,890120150501
+Single Spice,Fenugreek,16,Whole,25g,RTK-FNG-WH-025,890110160101
+Single Spice,Fenugreek,16,Whole,50g,RTK-FNG-WH-050,890110160201
+Single Spice,Fenugreek,16,Whole,100g,RTK-FNG-WH-100,890110160301
+Single Spice,Fenugreek,16,Whole,200g,RTK-FNG-WH-200,890110160401
+Single Spice,Fenugreek,16,Whole,250g,RTK-FNG-WH-250,890110160501
+Single Spice,Fenugreek,16,Powder,25g,RTK-FNG-PW-025,890120160101
+Single Spice,Fenugreek,16,Powder,50g,RTK-FNG-PW-050,890120160201
+Single Spice,Fenugreek,16,Powder,100g,RTK-FNG-PW-100,890120160301
+Single Spice,Fenugreek,16,Powder,200g,RTK-FNG-PW-200,890120160401
+Single Spice,Fenugreek,16,Powder,250g,RTK-FNG-PW-250,890120160501
+Single Spice,Ajwain,17,Whole,25g,RTK-AJW-WH-025,890110170101
+Single Spice,Ajwain,17,Whole,50g,RTK-AJW-WH-050,890110170201
+Single Spice,Ajwain,17,Whole,100g,RTK-AJW-WH-100,890110170301
+Single Spice,Ajwain,17,Whole,200g,RTK-AJW-WH-200,890110170401
+Single Spice,Ajwain,17,Whole,250g,RTK-AJW-WH-250,890110170501
+Single Spice,Ajwain,17,Powder,25g,RTK-AJW-PW-025,890120170101
+Single Spice,Ajwain,17,Powder,50g,RTK-AJW-PW-050,890120170201
+Single Spice,Ajwain,17,Powder,100g,RTK-AJW-PW-100,890120170301
+Single Spice,Ajwain,17,Powder,200g,RTK-AJW-PW-200,890120170401
+Single Spice,Ajwain,17,Powder,250g,RTK-AJW-PW-250,890120170501
+Single Spice,Nigella,18,Whole,25g,RTK-NIG-WH-025,890110180101
+Single Spice,Nigella,18,Whole,50g,RTK-NIG-WH-050,890110180201
+Single Spice,Nigella,18,Whole,100g,RTK-NIG-WH-100,890110180301
+Single Spice,Nigella,18,Whole,200g,RTK-NIG-WH-200,890110180401
+Single Spice,Nigella,18,Whole,250g,RTK-NIG-WH-250,890110180501
+Single Spice,Nigella,18,Powder,25g,RTK-NIG-PW-025,890120180101
+Single Spice,Nigella,18,Powder,50g,RTK-NIG-PW-050,890120180201
+Single Spice,Nigella,18,Powder,100g,RTK-NIG-PW-100,890120180301
+Single Spice,Nigella,18,Powder,200g,RTK-NIG-PW-200,890120180401
+Single Spice,Nigella,18,Powder,250g,RTK-NIG-PW-250,890120180501
+Single Spice,Carom,19,Whole,25g,RTK-CAR-WH-025,890110190101
+Single Spice,Carom,19,Whole,50g,RTK-CAR-WH-050,890110190201
+Single Spice,Carom,19,Whole,100g,RTK-CAR-WH-100,890110190301
+Single Spice,Carom,19,Whole,200g,RTK-CAR-WH-200,890110190401
+Single Spice,Carom,19,Whole,250g,RTK-CAR-WH-250,890110190501
+Single Spice,Carom,19,Powder,25g,RTK-CAR-PW-025,890120190101
+Single Spice,Carom,19,Powder,50g,RTK-CAR-PW-050,890120190201
+Single Spice,Carom,19,Powder,100g,RTK-CAR-PW-100,890120190301
+Single Spice,Carom,19,Powder,200g,RTK-CAR-PW-200,890120190401
+Single Spice,Carom,19,Powder,250g,RTK-CAR-PW-250,890120190501
+Single Spice,Dry Ginger,20,Whole,25g,RTK-DGN-WH-025,890110200101
+Single Spice,Dry Ginger,20,Whole,50g,RTK-DGN-WH-050,890110200201
+Single Spice,Dry Ginger,20,Whole,100g,RTK-DGN-WH-100,890110200301
+Single Spice,Dry Ginger,20,Whole,200g,RTK-DGN-WH-200,890110200401
+Single Spice,Dry Ginger,20,Whole,250g,RTK-DGN-WH-250,890110200501
+Single Spice,Dry Ginger,20,Powder,25g,RTK-DGN-PW-025,890120200101
+Single Spice,Dry Ginger,20,Powder,50g,RTK-DGN-PW-050,890120200201
+Single Spice,Dry Ginger,20,Powder,100g,RTK-DGN-PW-100,890120200301
+Single Spice,Dry Ginger,20,Powder,200g,RTK-DGN-PW-200,890120200401
+Single Spice,Dry Ginger,20,Powder,250g,RTK-DGN-PW-250,890120200501
+Single Spice,Dry Mango,21,Whole,25g,RTK-AMP-WH-025,890110210101
+Single Spice,Dry Mango,21,Whole,50g,RTK-AMP-WH-050,890110210201
+Single Spice,Dry Mango,21,Whole,100g,RTK-AMP-WH-100,890110210301
+Single Spice,Dry Mango,21,Whole,200g,RTK-AMP-WH-200,890110210401
+Single Spice,Dry Mango,21,Whole,250g,RTK-AMP-WH-250,890110210501
+Single Spice,Dry Mango,21,Powder,25g,RTK-AMP-PW-025,890120210101
+Single Spice,Dry Mango,21,Powder,50g,RTK-AMP-PW-050,890120210201
+Single Spice,Dry Mango,21,Powder,100g,RTK-AMP-PW-100,890120210301
+Single Spice,Dry Mango,21,Powder,200g,RTK-AMP-PW-200,890120210401
+Single Spice,Dry Mango,21,Powder,250g,RTK-AMP-PW-250,890120210501
+Single Spice,Asafoetida,22,Whole,25g,RTK-HNG-WH-025,890110220101
+Single Spice,Asafoetida,22,Whole,50g,RTK-HNG-WH-050,890110220201
+Single Spice,Asafoetida,22,Whole,100g,RTK-HNG-WH-100,890110220301
+Single Spice,Asafoetida,22,Whole,200g,RTK-HNG-WH-200,890110220401
+Single Spice,Asafoetida,22,Whole,250g,RTK-HNG-WH-250,890110220501
+Single Spice,Asafoetida,22,Powder,25g,RTK-HNG-PW-025,890120220101
+Single Spice,Asafoetida,22,Powder,50g,RTK-HNG-PW-050,890120220201
+Single Spice,Asafoetida,22,Powder,100g,RTK-HNG-PW-100,890120220301
+Single Spice,Asafoetida,22,Powder,200g,RTK-HNG-PW-200,890120220401
+Single Spice,Asafoetida,22,Powder,250g,RTK-HNG-PW-250,890120220501
+Single Spice,Saffron,23,Whole,25g,RTK-SAF-WH-025,890110230101
+Single Spice,Saffron,23,Whole,50g,RTK-SAF-WH-050,890110230201
+Single Spice,Saffron,23,Whole,100g,RTK-SAF-WH-100,890110230301
+Single Spice,Saffron,23,Whole,200g,RTK-SAF-WH-200,890110230401
+Single Spice,Saffron,23,Whole,250g,RTK-SAF-WH-250,890110230501
+Single Spice,Saffron,23,Powder,25g,RTK-SAF-PW-025,890120230101
+Single Spice,Saffron,23,Powder,50g,RTK-SAF-PW-050,890120230201
+Single Spice,Saffron,23,Powder,100g,RTK-SAF-PW-100,890120230301
+Single Spice,Saffron,23,Powder,200g,RTK-SAF-PW-200,890120230401
+Single Spice,Saffron,23,Powder,250g,RTK-SAF-PW-250,890120230501
+Single Spice,Kashmiri Chilli,24,Whole,25g,RTK-KCH-WH-025,890110240101
+Single Spice,Kashmiri Chilli,24,Whole,50g,RTK-KCH-WH-050,890110240201
+Single Spice,Kashmiri Chilli,24,Whole,100g,RTK-KCH-WH-100,890110240301
+Single Spice,Kashmiri Chilli,24,Whole,200g,RTK-KCH-WH-200,890110240401
+Single Spice,Kashmiri Chilli,24,Whole,250g,RTK-KCH-WH-250,890110240501
+Single Spice,Kashmiri Chilli,24,Powder,25g,RTK-KCH-PW-025,890120240101
+Single Spice,Kashmiri Chilli,24,Powder,50g,RTK-KCH-PW-050,890120240201
+Single Spice,Kashmiri Chilli,24,Powder,100g,RTK-KCH-PW-100,890120240301
+Single Spice,Kashmiri Chilli,24,Powder,200g,RTK-KCH-PW-200,890120240401
+Single Spice,Kashmiri Chilli,24,Powder,250g,RTK-KCH-PW-250,890120240501
+Single Spice,White Pepper,25,Whole,25g,RTK-WPP-WH-025,890110250101
+Single Spice,White Pepper,25,Whole,50g,RTK-WPP-WH-050,890110250201
+Single Spice,White Pepper,25,Whole,100g,RTK-WPP-WH-100,890110250301
+Single Spice,White Pepper,25,Whole,200g,RTK-WPP-WH-200,890110250401
+Single Spice,White Pepper,25,Whole,250g,RTK-WPP-WH-250,890110250501
+Single Spice,White Pepper,25,Powder,25g,RTK-WPP-PW-025,890120250101
+Single Spice,White Pepper,25,Powder,50g,RTK-WPP-PW-050,890120250201
+Single Spice,White Pepper,25,Powder,100g,RTK-WPP-PW-100,890120250301
+Single Spice,White Pepper,25,Powder,200g,RTK-WPP-PW-200,890120250401
+Single Spice,White Pepper,25,Powder,250g,RTK-WPP-PW-250,890120250501
+Single Spice,Long Pepper,26,Whole,25g,RTK-LPG-WH-025,890110260101
+Single Spice,Long Pepper,26,Whole,50g,RTK-LPG-WH-050,890110260201
+Single Spice,Long Pepper,26,Whole,100g,RTK-LPG-WH-100,890110260301
+Single Spice,Long Pepper,26,Whole,200g,RTK-LPG-WH-200,890110260401
+Single Spice,Long Pepper,26,Whole,250g,RTK-LPG-WH-250,890110260501
+Single Spice,Long Pepper,26,Powder,25g,RTK-LPG-PW-025,890120260101
+Single Spice,Long Pepper,26,Powder,50g,RTK-LPG-PW-050,890120260201
+Single Spice,Long Pepper,26,Powder,100g,RTK-LPG-PW-100,890120260301
+Single Spice,Long Pepper,26,Powder,200g,RTK-LPG-PW-200,890120260401
+Single Spice,Long Pepper,26,Powder,250g,RTK-LPG-PW-250,890120260501
+Blend,Garam Masala,101,Blend,25g,RTK-GRM-BL-025,890131010101
+Blend,Garam Masala,101,Blend,50g,RTK-GRM-BL-050,890131010201
+Blend,Garam Masala,101,Blend,100g,RTK-GRM-BL-100,890131010301
+Blend,Garam Masala,101,Blend,200g,RTK-GRM-BL-200,890131010401
+Blend,Garam Masala,101,Blend,250g,RTK-GRM-BL-250,890131010501
+Blend,Kitchen King,102,Blend,25g,RTK-KTK-BL-025,890131020101
+Blend,Kitchen King,102,Blend,50g,RTK-KTK-BL-050,890131020201
+Blend,Kitchen King,102,Blend,100g,RTK-KTK-BL-100,890131020301
+Blend,Kitchen King,102,Blend,200g,RTK-KTK-BL-200,890131020401
+Blend,Kitchen King,102,Blend,250g,RTK-KTK-BL-250,890131020501
+Blend,Chaat Masala,103,Blend,25g,RTK-CHT-BL-025,890131030101
+Blend,Chaat Masala,103,Blend,50g,RTK-CHT-BL-050,890131030201
+Blend,Chaat Masala,103,Blend,100g,RTK-CHT-BL-100,890131030301
+Blend,Chaat Masala,103,Blend,200g,RTK-CHT-BL-200,890131030401
+Blend,Chaat Masala,103,Blend,250g,RTK-CHT-BL-250,890131030501
+Blend,Pav Bhaji,104,Blend,25g,RTK-PVB-BL-025,890131040101
+Blend,Pav Bhaji,104,Blend,50g,RTK-PVB-BL-050,890131040201
+Blend,Pav Bhaji,104,Blend,100g,RTK-PVB-BL-100,890131040301
+Blend,Pav Bhaji,104,Blend,200g,RTK-PVB-BL-200,890131040401
+Blend,Pav Bhaji,104,Blend,250g,RTK-PVB-BL-250,890131040501
+Blend,Biryani Masala,105,Blend,25g,RTK-BRY-BL-025,890131050101
+Blend,Biryani Masala,105,Blend,50g,RTK-BRY-BL-050,890131050201
+Blend,Biryani Masala,105,Blend,100g,RTK-BRY-BL-100,890131050301
+Blend,Biryani Masala,105,Blend,200g,RTK-BRY-BL-200,890131050401
+Blend,Biryani Masala,105,Blend,250g,RTK-BRY-BL-250,890131050501
+Blend,Sabzi Masala,106,Blend,25g,RTK-SBZ-BL-025,890131060101
+Blend,Sabzi Masala,106,Blend,50g,RTK-SBZ-BL-050,890131060201
+Blend,Sabzi Masala,106,Blend,100g,RTK-SBZ-BL-100,890131060301
+Blend,Sabzi Masala,106,Blend,200g,RTK-SBZ-BL-200,890131060401
+Blend,Sabzi Masala,106,Blend,250g,RTK-SBZ-BL-250,890131060501
+Blend,Meat Masala,107,Blend,25g,RTK-MET-BL-025,890131070101
+Blend,Meat Masala,107,Blend,50g,RTK-MET-BL-050,890131070201
+Blend,Meat Masala,107,Blend,100g,RTK-MET-BL-100,890131070301
+Blend,Meat Masala,107,Blend,200g,RTK-MET-BL-200,890131070401
+Blend,Meat Masala,107,Blend,250g,RTK-MET-BL-250,890131070501
+Blend,Chicken Masala,108,Blend,25g,RTK-CHK-BL-025,890131080101
+Blend,Chicken Masala,108,Blend,50g,RTK-CHK-BL-050,890131080201
+Blend,Chicken Masala,108,Blend,100g,RTK-CHK-BL-100,890131080301
+Blend,Chicken Masala,108,Blend,200g,RTK-CHK-BL-200,890131080401
+Blend,Chicken Masala,108,Blend,250g,RTK-CHK-BL-250,890131080501
+Blend,Fish Masala,109,Blend,25g,RTK-FSH-BL-025,890131090101
+Blend,Fish Masala,109,Blend,50g,RTK-FSH-BL-050,890131090201
+Blend,Fish Masala,109,Blend,100g,RTK-FSH-BL-100,890131090301
+Blend,Fish Masala,109,Blend,200g,RTK-FSH-BL-200,890131090401
+Blend,Fish Masala,109,Blend,250g,RTK-FSH-BL-250,890131090501
+Blend,Tea Masala,110,Blend,25g,RTK-TEA-BL-025,890131100101
+Blend,Tea Masala,110,Blend,50g,RTK-TEA-BL-050,890131100201
+Blend,Tea Masala,110,Blend,100g,RTK-TEA-BL-100,890131100301
+Blend,Tea Masala,110,Blend,200g,RTK-TEA-BL-200,890131100401
+Blend,Tea Masala,110,Blend,250g,RTK-TEA-BL-250,890131100501
+Blend,Paneer Masala,111,Blend,25g,RTK-PAN-BL-025,890131110101
+Blend,Paneer Masala,111,Blend,50g,RTK-PAN-BL-050,890131110201
+Blend,Paneer Masala,111,Blend,100g,RTK-PAN-BL-100,890131110301
+Blend,Paneer Masala,111,Blend,200g,RTK-PAN-BL-200,890131110401
+Blend,Paneer Masala,111,Blend,250g,RTK-PAN-BL-250,890131110501
+Blend,Tandoori Masala,112,Blend,25g,RTK-TAN-BL-025,890131120101
+Blend,Tandoori Masala,112,Blend,50g,RTK-TAN-BL-050,890131120201
+Blend,Tandoori Masala,112,Blend,100g,RTK-TAN-BL-100,890131120301
+Blend,Tandoori Masala,112,Blend,200g,RTK-TAN-BL-200,890131120401
+Blend,Tandoori Masala,112,Blend,250g,RTK-TAN-BL-250,890131120501
+Blend,Sambar Masala,113,Blend,25g,RTK-SMB-BL-025,890131130101
+Blend,Sambar Masala,113,Blend,50g,RTK-SMB-BL-050,890131130201
+Blend,Sambar Masala,113,Blend,100g,RTK-SMB-BL-100,890131130301
+Blend,Sambar Masala,113,Blend,200g,RTK-SMB-BL-200,890131130401
+Blend,Sambar Masala,113,Blend,250g,RTK-SMB-BL-250,890131130501
+Blend,Rasam Powder,114,Blend,25g,RTK-RSM-BL-025,890131140101
+Blend,Rasam Powder,114,Blend,50g,RTK-RSM-BL-050,890131140201
+Blend,Rasam Powder,114,Blend,100g,RTK-RSM-BL-100,890131140301
+Blend,Rasam Powder,114,Blend,200g,RTK-RSM-BL-200,890131140401
+Blend,Rasam Powder,114,Blend,250g,RTK-RSM-BL-250,890131140501
