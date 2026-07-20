@@ -1,14 +1,29 @@
 "use client";
 
-import { use, useState, type FormEvent } from "react";
+import { use, useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
+import { WifiOff } from "lucide-react";
 import { useGetProductQuery, useUpdateProductMutation, useAdjustStockMutation } from "@/lib/redux/features/products/productsApi";
 import { BarcodePanel } from "@/components/scanner/BarcodePanel";
 import { ExternalBarcodeBadge } from "@/components/ExternalBarcodeBadge";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { getOfflineProduct } from "@/lib/offlineDb";
+import type { Product } from "@/types/product";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: product, isLoading } = useGetProductQuery(id);
+  const isOnline = useOnlineStatus();
+  const { data: onlineProduct, isLoading: isLoadingOnline } = useGetProductQuery(id, { skip: !isOnline });
+
+  const [offlineProduct, setOfflineProduct] = useState<Product | null | undefined>(undefined);
+  useEffect(() => {
+    if (!isOnline) {
+      getOfflineProduct(id).then((p) => setOfflineProduct(p ?? null));
+    }
+  }, [isOnline, id]);
+
+  const product = isOnline ? onlineProduct : (offlineProduct ?? undefined);
+  const isLoading = isOnline ? isLoadingOnline : offlineProduct === undefined;
 
   if (isLoading) return <p className="text-sm text-muted">Loading…</p>;
   if (!product) return <p className="text-sm text-danger">Product not found.</p>;
@@ -28,19 +43,28 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <StockCard productId={product._id} quantityInStock={product.quantityInStock} lowStockThreshold={product.lowStockThreshold} />
-      <BarcodePanel key={`barcode-${product._id}`} productId={product._id} sku={product.sku} ean13={product.ean13} />
-      <EditForm
-        key={`edit-${product._id}`}
-        productId={product._id}
-        category={product.category}
-        hsnCode={product.hsnCode}
-        costPrice={product.costPrice}
-        sellingPrice={product.sellingPrice}
-        lowStockThreshold={product.lowStockThreshold}
-        note={product.note}
-        isActive={product.isActive}
-      />
+      {!isOnline ? (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
+          <WifiOff size={16} aria-hidden />
+          Viewing cached details. Stock adjustments, edits, and the barcode panel need a connection.
+        </div>
+      ) : (
+        <>
+          <StockCard productId={product._id} quantityInStock={product.quantityInStock} lowStockThreshold={product.lowStockThreshold} />
+          <BarcodePanel key={`barcode-${product._id}`} productId={product._id} sku={product.sku} ean13={product.ean13} />
+          <EditForm
+            key={`edit-${product._id}`}
+            productId={product._id}
+            category={product.category}
+            hsnCode={product.hsnCode}
+            costPrice={product.costPrice}
+            sellingPrice={product.sellingPrice}
+            lowStockThreshold={product.lowStockThreshold}
+            note={product.note}
+            isActive={product.isActive}
+          />
+        </>
+      )}
     </div>
   );
 }

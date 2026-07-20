@@ -1,25 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, WifiOff } from "lucide-react";
 import { useListProductsQuery } from "@/lib/redux/features/products/productsApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useProductOfflineSync } from "@/hooks/useProductOfflineSync";
+import { getOfflineProducts, matchesProductFilters } from "@/lib/offlineDb";
 import { ExternalBarcodeBadge } from "@/components/ExternalBarcodeBadge";
-import { PRODUCT_TYPES, type ProductType } from "@/types/product";
+import { PRODUCT_TYPES, type Product, type ProductType } from "@/types/product";
 
 export default function ProductsPage() {
+  const isOnline = useOnlineStatus();
+  useProductOfflineSync(); // keeps the IndexedDB catalog cache warm while online
+
   const [searchInput, setSearchInput] = useState("");
   const [type, setType] = useState<ProductType | "">("");
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const search = useDebouncedValue(searchInput);
+  const filters = { search: search || undefined, type: type || undefined, lowStockOnly };
 
-  const { data: products, isLoading } = useListProductsQuery({
-    search: search || undefined,
-    type: type || undefined,
-    lowStockOnly,
-  });
+  const { data: onlineProducts, isLoading: isLoadingOnline } = useListProductsQuery(filters, { skip: !isOnline });
+
+  const [offlineProducts, setOfflineProducts] = useState<Product[] | null>(null);
+  useEffect(() => {
+    if (!isOnline) {
+      getOfflineProducts().then(setOfflineProducts);
+    }
+  }, [isOnline]);
+
+  const products = isOnline ? onlineProducts : offlineProducts?.filter((p) => matchesProductFilters(p, filters));
+  const isLoading = isOnline ? isLoadingOnline : offlineProducts === null;
 
   return (
     <div>
@@ -27,12 +40,22 @@ export default function ProductsPage() {
         <h1 className="text-2xl font-semibold text-foreground">Inventory</h1>
         <Link
           href="/products/new"
-          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+          aria-disabled={!isOnline}
+          className={`flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground ${
+            !isOnline ? "pointer-events-none opacity-50" : ""
+          }`}
         >
           <Plus size={16} aria-hidden />
           Add product
         </Link>
       </div>
+
+      {!isOnline && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+          <WifiOff size={12} aria-hidden />
+          Offline — showing the last synced catalog. Stock counts may be out of date.
+        </p>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-50">
