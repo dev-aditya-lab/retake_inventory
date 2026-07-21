@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Plus, Search, WifiOff } from "lucide-react";
 import { useListProductsQuery } from "@/lib/redux/features/products/productsApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -15,10 +16,11 @@ import { PRODUCT_TYPES, type Product, type ProductType } from "@/types/product";
 export default function ProductsPage() {
   const isOnline = useOnlineStatus();
   useProductOfflineSync(); // keeps the IndexedDB catalog cache warm while online
+  const searchParams = useSearchParams();
 
   const [searchInput, setSearchInput] = useState("");
   const [type, setType] = useState<ProductType | "">("");
-  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [lowStockOnly, setLowStockOnly] = useState(searchParams.get("lowStockOnly") === "true");
   const search = useDebouncedValue(searchInput);
   const filters = { search: search || undefined, type: type || undefined, lowStockOnly };
 

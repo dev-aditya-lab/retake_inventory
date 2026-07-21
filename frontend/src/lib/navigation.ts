@@ -17,6 +17,6 @@ export const navItems: NavItem[] = [
   { label: "Inventory", href: "/products", icon: Package, mobilePriority: true },
   { label: "Billing", href: "/billing", icon: Receipt, mobilePriority: true },
   { label: "Barcode", href: "/barcode", icon: ScanBarcode, mobilePriority: true },
-  { label: "Reports", href: "/reports", icon: BarChart3 },
+  { label: "Reports", href: "/reports", icon: BarChart3, roles: ["admin"] },
   { label: "Staff", href: "/staff", icon: Users, roles: ["admin"] },
 ];
