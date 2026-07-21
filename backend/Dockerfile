@@ -40,6 +40,7 @@ FROM node:${NODE_VERSION} AS runtime
 ARG CANVAS_RUNTIME_DEPS
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PORT=8801
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ${CANVAS_RUNTIME_DEPS} \
   && rm -rf /var/lib/apt/lists/*

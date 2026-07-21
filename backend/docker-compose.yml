@@ -4,11 +4,30 @@ services:
       context: .
     ports:
       - "8801:8801"
-    env_file:
-      - .env
     environment:
-      MONGODB_URI: mongodb://mongo:27017/retake
-      REDIS_URL: redis://redis:6379
+      # Fixed/derived values — bundled mongo/redis unless overridden.
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-8801}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/retake}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - WHATSAPP_API_URL=${WHATSAPP_API_URL:-https://graph.facebook.com/v22.0}
+      # Passed through only when set on the host/Coolify side — leaving these
+      # unset here (rather than resolving to "") lets Zod's own .default()/
+      # .optional() handling in src/config/env.ts kick in as intended.
+      - CLIENT_URL
+      - JWT_ACCESS_SECRET
+      - JWT_REFRESH_SECRET
+      - JWT_ACCESS_EXPIRES_IN
+      - JWT_REFRESH_EXPIRES_IN
+      - CLOUDINARY_CLOUD_NAME
+      - CLOUDINARY_API_KEY
+      - CLOUDINARY_API_SECRET
+      - WHATSAPP_PHONE_NUMBER_ID
+      - WHATSAPP_PHONE_NUMBER2_ID
+      - WHATSAPP_ACCESS_TOKEN
+      - WHATSAPP_BUSINESS_ACCOUNT_ID
+      - RESEND_API_KEY
+      - RESEND_FROM_EMAIL
     depends_on:
       - mongo
       - redis
@@ -16,17 +35,15 @@ services:
 
   mongo:
     image: mongo:8
-    ports:
-      - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    restart: unless-stopped
 
   redis:
     image: redis:8-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis-data:/data
+    restart: unless-stopped
 
 volumes:
   mongo-data:

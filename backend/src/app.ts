@@ -17,6 +17,12 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 export function createApp() {
   const app = express();
 
+  // Coolify (and most self-hosted PaaS) terminate TLS at a reverse proxy
+  // (Traefik) in front of this container. Without trust proxy set,
+  // express-rate-limit throws on the X-Forwarded-For header it sees, and
+  // req.ip would resolve to the proxy's address instead of the client's.
+  app.set("trust proxy", 1);
+
   app.use(helmet());
   app.use(
     cors({
