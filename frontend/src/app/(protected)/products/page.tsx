@@ -4,19 +4,27 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { Plus, Search, WifiOff } from "lucide-react";
+import { Plus, Search, Upload, WifiOff } from "lucide-react";
 import { useListProductsQuery } from "@/lib/redux/features/products/productsApi";
+import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useProductOfflineSync } from "@/hooks/useProductOfflineSync";
 import { getOfflineProducts, matchesProductFilters } from "@/lib/offlineDb";
 import { ExternalBarcodeBadge } from "@/components/ExternalBarcodeBadge";
+import { ExportButtons } from "@/components/ExportButtons";
+import { ImportProductsPanel } from "@/components/products/ImportProductsPanel";
 import { PRODUCT_TYPES, type Product, type ProductType } from "@/types/product";
+
+const CAN_MANAGE_STOCK_ROLES = ["admin", "inventory_manager"];
 
 export default function ProductsPage() {
   const isOnline = useOnlineStatus();
   useProductOfflineSync(); // keeps the IndexedDB catalog cache warm while online
   const searchParams = useSearchParams();
+  const { data: currentUser } = useGetMeQuery();
+  const canManageStock = !!currentUser && CAN_MANAGE_STOCK_ROLES.includes(currentUser.role);
+  const [showImport, setShowImport] = useState(false);
 
   const [searchInput, setSearchInput] = useState("");
   const [type, setType] = useState<ProductType | "">("");
@@ -58,6 +66,22 @@ export default function ProductsPage() {
           Offline — showing the last synced catalog. Stock counts may be out of date.
         </p>
       )}
+
+      {canManageStock && isOnline && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3">
+          <ExportButtons path="/api/products/export" filenameBase="products" label="Export catalog" />
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-ink-100"
+          >
+            <Upload size={14} aria-hidden />
+            Import
+          </button>
+        </div>
+      )}
+
+      {showImport && <ImportProductsPanel onClose={() => setShowImport(false)} />}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-50">

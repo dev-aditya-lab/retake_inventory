@@ -4,6 +4,10 @@ import { authenticate, requireRole } from "../middleware/auth";
 
 export const invoiceRouter = Router();
 
+// Must come before "/:invoiceNumber", which otherwise swallows "export" as
+// an invoice number (it's a single-segment catch-all).
+invoiceRouter.get("/export", authenticate, requireRole("admin"), invoiceController.exportInvoices);
+
 // Public — customers look up their own invoice by number, no login required.
 invoiceRouter.get("/:invoiceNumber", invoiceController.getInvoice);
 invoiceRouter.get("/:invoiceNumber/barcode", invoiceController.getInvoiceBarcode);

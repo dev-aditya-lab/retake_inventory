@@ -8,6 +8,7 @@ import {
   useGetUserWiseReportQuery,
 } from "@/lib/redux/features/reports/reportsApi";
 import { TrendChart } from "@/components/charts/TrendChart";
+import { ExportButtons } from "@/components/ExportButtons";
 import type { DateRangeInput, SalesPeriod } from "@/types/report";
 
 const currency = (n: number) => `₹${n.toFixed(2)}`;
@@ -81,9 +82,21 @@ export default function ReportsPage() {
   const totalRevenue = sales?.reduce((sum, s) => sum + s.revenue, 0) ?? 0;
   const totalInvoices = sales?.reduce((sum, s) => sum + s.invoiceCount, 0) ?? 0;
 
+  const rangeQuery = range.from ? `?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to ?? "")}` : "";
+
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-foreground">Reports</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-foreground">Reports</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <ExportButtons path={`/api/invoices/export${rangeQuery}`} filenameBase="invoices" label="Invoices" />
+          <ExportButtons
+            path={`/api/products/stock-movements/export${rangeQuery}`}
+            filenameBase="stock-movements"
+            label="Stock movements"
+          />
+        </div>
+      </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
         {PRESETS.map((p) => (

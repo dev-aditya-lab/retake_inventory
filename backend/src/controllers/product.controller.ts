@@ -1,9 +1,26 @@
 import type { Request, Response } from "express";
 import * as productService from "../services/product.service";
 import { generateBarcodePng, generateBarcodeSvg } from "../services/barcode.service";
+import * as exportService from "../services/export.service";
+import * as importService from "../services/import.service";
 import { decodeEan13 } from "../utils/barcode";
 import { ApiError } from "../utils/ApiError";
 import type { ProductType } from "../config/barcodeScheme";
+import type { ExportFormat } from "../services/export.service";
+
+function parseDateRangeQuery(req: Request): { from?: Date; to?: Date } {
+  const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+  const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+  return { from, to };
+}
+
+function sendSpreadsheet(res: Response, format: ExportFormat, filenameBase: string, buffer: Buffer): void {
+  const filename = `${filenameBase}.${format}`;
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res
+    .type(format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    .send(buffer);
+}
 
 export async function createProduct(req: Request, res: Response): Promise<void> {
   const product = await productService.createProduct(req.body);
@@ -61,4 +78,33 @@ export async function getProductBarcodeImage(req: Request, res: Response): Promi
 export async function decodeBarcode(req: Request, res: Response): Promise<void> {
   const decoded = decodeEan13(req.params.ean13 as string);
   res.json({ success: true, data: decoded });
+}
+
+export async function exportProducts(req: Request, res: Response): Promise<void> {
+  const format: ExportFormat = req.query.format === "xlsx" ? "xlsx" : "csv";
+  const buffer = await exportService.exportProducts(format);
+  sendSpreadsheet(res, format, "products", buffer);
+}
+
+export async function exportStockMovements(req: Request, res: Response): Promise<void> {
+  const format: ExportFormat = req.query.format === "xlsx" ? "xlsx" : "csv";
+  const buffer = await exportService.exportStockMovements(format, parseDateRangeQuery(req));
+  sendSpreadsheet(res, format, "stock-movements", buffer);
+}
+
+export async function importProducts(req: Request, res: Response): Promise<void> {
+  if (!req.file) throw ApiError.badRequest("No file uploaded — attach a CSV or XLSX file");
+  if (!req.user) throw ApiError.unauthorized();
+
+  // Defaults to a dry run (preview only) — the caller must explicitly pass
+  // ?dryRun=false to actually commit changes.
+  const dryRun = req.query.dryRun !== "false";
+  const results = await importService.importProducts(
+    req.file.buffer,
+    req.file.mimetype,
+    req.file.originalname,
+    req.user.id,
+    dryRun,
+  );
+  res.json({ success: true, data: { dryRun, results } });
 }

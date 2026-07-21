@@ -2,10 +2,12 @@ import type { Request, Response } from "express";
 import * as invoiceService from "../services/invoice.service";
 import * as whatsappService from "../services/whatsapp.service";
 import * as emailService from "../services/email.service";
+import * as exportService from "../services/export.service";
 import { generateInvoiceBarcodePng } from "../services/barcode.service";
 import { generateInvoicePdf } from "../services/pdf.service";
 import { ApiError } from "../utils/ApiError";
 import { env } from "../config/env";
+import type { ExportFormat } from "../services/export.service";
 
 export async function getInvoice(req: Request, res: Response): Promise<void> {
   const invoice = await invoiceService.getInvoiceByNumber(req.params.invoiceNumber as string);
@@ -68,4 +70,16 @@ export async function sendWhatsapp(req: Request, res: Response): Promise<void> {
 
 export function invoiceDownloadUrl(invoiceNumber: string): string {
   return `${env.CLIENT_URL}/invoice/${invoiceNumber}`;
+}
+
+export async function exportInvoices(req: Request, res: Response): Promise<void> {
+  const format: ExportFormat = req.query.format === "xlsx" ? "xlsx" : "csv";
+  const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+  const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+  const buffer = await exportService.exportInvoices(format, { from, to });
+  const filename = `invoices.${format}`;
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res
+    .type(format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    .send(buffer);
 }
