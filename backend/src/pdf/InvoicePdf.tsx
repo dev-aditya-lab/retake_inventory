@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
 import { company } from "../config/company";
 
@@ -105,7 +106,12 @@ const styles = StyleSheet.create({
   barcode: { width: 140, height: 44 },
 });
 
-const logoPath = path.resolve(__dirname, "../assets/logo.png");
+// Read into a Buffer (rather than passing the path string as `src`) because
+// @react-pdf/image resolves string sources through its own URL parser, which
+// misreads a Windows absolute path's drive letter ("C:\...") as a URL scheme
+// and tries to fetch it remotely instead of reading it from disk — silently
+// dropping the logo. A Buffer skips that resolution path entirely.
+const logoBuffer = readFileSync(path.resolve(__dirname, "../assets/logo.png"));
 
 export function InvoicePdf({ invoice }: { invoice: InvoicePdfData }) {
   return (
@@ -113,7 +119,7 @@ export function InvoicePdf({ invoice }: { invoice: InvoicePdfData }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow}>
           <View style={styles.companyBlock}>
-            <Image src={logoPath} style={styles.logo} />
+            <Image src={logoBuffer} style={styles.logo} />
             <View>
               <Text style={styles.companyName}>{company.legalName}</Text>
               <Text style={styles.small}>

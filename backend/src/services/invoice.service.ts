@@ -6,25 +6,19 @@ import { StockMovement } from "../models/StockMovement.model";
 import { ApiError } from "../utils/ApiError";
 import { numberToWordsINR } from "../utils/numberToWords";
 import { company } from "../config/company";
+import { calculateInvoiceTotals, round2, splitGst } from "../utils/gst";
+import { dateKeyFor, formatInvoiceNumber } from "../utils/invoiceNumber";
 import * as cartService from "./cart.service";
 
 const INVOICE_SEQ_TTL_SECONDS = 60 * 60 * 48; // spans a full day plus buffer past midnight rollover
 
-function todayDateKey(): string {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${yy}${mm}${dd}`;
-}
-
 /** Atomically issues the next invoice number for today: RTK-INV-YYMMDD-XXXX. */
 async function nextInvoiceNumber(): Promise<string> {
-  const dateKey = todayDateKey();
+  const dateKey = dateKeyFor(new Date());
   const seqKey = `invoice:seq:${dateKey}`;
   const seq = await redis.incr(seqKey);
   await redis.expire(seqKey, INVOICE_SEQ_TTL_SECONDS);
-  return `${company.invoicePrefix}-${dateKey}-${String(seq).padStart(4, "0")}`;
+  return formatInvoiceNumber(company.invoicePrefix, dateKey, seq);
 }
 
 export async function checkout(userId: string, cartId: string) {
@@ -35,25 +29,19 @@ export async function checkout(userId: string, cartId: string) {
   if (!cart.paymentMethod) throw ApiError.badRequest("Payment method is required");
   if (cart.gst.enabled && !cart.gst.type) throw ApiError.badRequest("GST type (CGST+SGST or IGST) is required when GST is enabled");
 
-  const subtotal = round2(cart.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0));
-  const gstAmount = cart.gst.enabled ? round2(subtotal * (cart.gst.percentage / 100)) : 0;
-  const otherCharges = round2(cart.otherCharges || 0);
-  const grandTotal = round2(subtotal + gstAmount + otherCharges);
-
-  // Split evenly but keep cgst+sgst summing exactly to gstAmount — rounding
-  // each half independently can be off by a paisa (e.g. 5.625 -> 5.63 twice
-  // = 11.26 when the total is really 11.25).
-  const cgstAmount = round2(gstAmount / 2);
-  const sgstAmount = round2(gstAmount - cgstAmount);
+  const { subtotal, gstAmount, otherCharges, grandTotal } = calculateInvoiceTotals({
+    items: cart.items,
+    gstEnabled: cart.gst.enabled,
+    gstPercentage: cart.gst.percentage,
+    otherCharges: cart.otherCharges,
+  });
 
   const gst = {
     enabled: cart.gst.enabled,
     type: cart.gst.type,
     percentage: cart.gst.percentage,
     amount: gstAmount,
-    cgstAmount: cart.gst.enabled && cart.gst.type === "CGST_SGST" ? cgstAmount : undefined,
-    sgstAmount: cart.gst.enabled && cart.gst.type === "CGST_SGST" ? sgstAmount : undefined,
-    igstAmount: cart.gst.enabled && cart.gst.type === "IGST" ? gstAmount : undefined,
+    ...splitGst(gstAmount, cart.gst.type, cart.gst.enabled),
   };
 
   const session = await mongoose.startSession();
@@ -133,10 +121,6 @@ export async function checkout(userId: string, cartId: string) {
   await cartService.discardCart(userId, cartId);
 
   return Invoice.findById(invoiceId);
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 export async function getInvoiceByNumber(invoiceNumber: string) {

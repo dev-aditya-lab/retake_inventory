@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { company } from "@/config/company";
-import { API_BASE_URL } from "@/lib/redux/apiSlice";
+import { InvoiceBarcode } from "./InvoiceBarcode";
 import type { Invoice } from "@/types/invoice";
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
@@ -141,12 +141,7 @@ export function InvoiceView({ invoice }: { invoice: Invoice }) {
           <p>{company.legalName}</p>
           <p>{company.website}</p>
         </div>
-        {/* eslint-disable-next-line @next/next/no-img-element -- server-rendered barcode PNG, not a next/image candidate */}
-        <img
-          src={`${API_BASE_URL}/api/invoices/${invoice.invoiceNumber}/barcode`}
-          alt={invoice.invoiceNumber}
-          className="h-12"
-        />
+        <InvoiceBarcode value={invoice.invoiceNumber} className="h-12" />
       </div>
     </div>
   );

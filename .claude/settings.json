@@ -32,7 +32,10 @@
       "Bash(node scripts/generate-icons.js)",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" -b /tmp/cookies_sales.txt http://localhost:5000/api/reports/dashboard)",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" -b /tmp/cookies_sales.txt http://localhost:5000/api/reports/sales)",
-      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" -b /tmp/cookies_sales.txt http://localhost:5000/api/reports/users)"
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" -b /tmp/cookies_sales.txt http://localhost:5000/api/reports/users)",
+      "Bash(curl -s -i \"http://localhost:5000/api/invoices/RTK-INV-NOPE-0000\")",
+      "Bash(curl -s -H \"Cookie: accessToken=dummy.jwt.value; refreshToken=dummy2\" -H \"Authorization: Bearer sometoken\" \"http://localhost:5000/api/products\" -o /dev/null -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(grep -o '\"headers\":{[^,]*,\"user-agent\"[^}]*}')"
     ],
     "additionalDirectories": [
       "\\tmp"

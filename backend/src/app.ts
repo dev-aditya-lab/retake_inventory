@@ -14,6 +14,7 @@ import { cartRouter } from "./routes/cart.routes";
 import { invoiceRouter } from "./routes/invoice.routes";
 import { reportRouter } from "./routes/report.routes";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { apiLimiter } from "./middleware/rateLimit";
 
 export function createApp() {
   const app = express();
@@ -38,6 +39,7 @@ export function createApp() {
   app.use(pinoHttp({ logger }));
 
   app.use("/health", healthRouter);
+  app.use("/api", apiLimiter);
   app.use("/api/auth", authRouter);
   app.use("/api/users", userRouter);
   app.use("/api/products", productRouter);

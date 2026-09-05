@@ -2,6 +2,7 @@ import { Product } from "../models/Product.model";
 import { StockMovement } from "../models/StockMovement.model";
 import { buildEan12, computeEan13CheckDigit, isValidEan13 } from "../utils/barcode";
 import { buildSku } from "../utils/sku";
+import { escapeRegex } from "../utils/regex";
 import { ApiError } from "../utils/ApiError";
 import type { ProductType } from "../config/barcodeScheme";
 import { PRODUCT_CODES } from "../config/barcodeScheme";
@@ -84,9 +85,10 @@ export async function listProducts(filters: ProductListFilters) {
   const query: Record<string, unknown> = { isActive: true };
 
   if (filters.search) {
+    const pattern = escapeRegex(filters.search);
     query.$or = [
-      { name: { $regex: filters.search, $options: "i" } },
-      { sku: { $regex: filters.search, $options: "i" } },
+      { name: { $regex: pattern, $options: "i" } },
+      { sku: { $regex: pattern, $options: "i" } },
       { ean13: filters.search },
     ];
   }
