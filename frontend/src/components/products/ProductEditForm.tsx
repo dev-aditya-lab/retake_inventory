@@ -5,6 +5,7 @@ import { AlertTriangle } from "lucide-react";
 import { useUpdateProductMutation, type UpdateProductInput } from "@/lib/redux/features/products/productsApi";
 import { useListSkuCodesQuery } from "@/lib/redux/features/catalog/catalogApi";
 import { HsnCodeSelect } from "./HsnCodeSelect";
+import { GstRateSelect, UqcSelect } from "./GstFields";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { PRODUCT_TYPES, WEIGHT_LABELS, type Product, type ProductType } from "@/types/product";
 
@@ -28,6 +29,9 @@ export function ProductEditForm({ product, isAdmin }: { product: Product; isAdmi
     hsnCode: product.hsnCode,
     costPrice: String(product.costPrice),
     sellingPrice: String(product.sellingPrice),
+    mrp: product.mrp !== undefined && product.mrp !== null ? String(product.mrp) : "",
+    gstRate: product.gstRate !== undefined && product.gstRate !== null ? String(product.gstRate) : "",
+    uqc: product.uqc || "PAC",
     lowStockThreshold: String(product.lowStockThreshold),
     note: product.note,
     isActive: product.isActive,
@@ -56,6 +60,9 @@ export function ProductEditForm({ product, isAdmin }: { product: Product; isAdmi
       hsnCode: form.hsnCode,
       costPrice: Number(form.costPrice),
       sellingPrice: Number(form.sellingPrice),
+      mrp: form.mrp === "" ? undefined : Number(form.mrp),
+      gstRate: form.gstRate === "" ? undefined : Number(form.gstRate),
+      uqc: form.uqc,
       lowStockThreshold: Number(form.lowStockThreshold),
       note: form.note,
       isActive: form.isActive,
@@ -170,11 +177,40 @@ export function ProductEditForm({ product, isAdmin }: { product: Product; isAdmi
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
           HSN/SAC code
-          <HsnCodeSelect value={form.hsnCode} onChange={(code) => set("hsnCode", code)} />
+          <HsnCodeSelect
+            value={form.hsnCode}
+            onChange={(code, rate) => {
+              set("hsnCode", code);
+              if (rate !== undefined && rate !== null) set("gstRate", String(rate));
+            }}
+          />
         </label>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          GST rate
+          <GstRateSelect value={form.gstRate} onChange={(rate) => set("gstRate", rate)} />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          Unit (for GST returns)
+          <UqcSelect value={form.uqc} onChange={(uqc) => set("uqc", uqc)} />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          MRP (incl. GST)
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.mrp}
+            onChange={(e) => set("mrp", e.target.value)}
+            placeholder="Retail price"
+            className="input"
+          />
+        </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
           Cost price
           <input
@@ -187,7 +223,7 @@ export function ProductEditForm({ product, isAdmin }: { product: Product; isAdmi
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          Selling price
+          B2B price (excl. GST)
           <input
             type="number"
             min="0"

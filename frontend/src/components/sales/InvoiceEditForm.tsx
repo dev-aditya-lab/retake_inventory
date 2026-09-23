@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Minus, Plus, Search, Trash2 } from "lucide-react";
+import { Info, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { useUpdateInvoiceMutation } from "@/lib/redux/features/invoices/invoicesApi";
 import { useListProductsQuery } from "@/lib/redux/features/products/productsApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatCurrency } from "@/lib/format";
-import { PAYMENT_METHODS, type GstType, type PaymentMethod } from "@/types/cart";
+import { gstinStateCode, looksLikeGstin, previewInvoiceTax, type PriceMode } from "@/lib/gstCalc";
+import { GST_STATES, SUPPLIER_STATE_CODE } from "@/config/gst";
+import { PlaceOfSupplySelect } from "@/components/gst/PlaceOfSupplySelect";
+import { BuyerBadge } from "@/components/gst/BuyerBadge";
+import { PAYMENT_METHODS, type PaymentMethod } from "@/types/cart";
 import type { Invoice } from "@/types/invoice";
 import type { Product } from "@/types/product";
 
@@ -16,13 +20,20 @@ interface Line {
   name: string;
   /** Extra context for newly added lines ("Powder · 100g"); billed lines only keep their name. */
   detail?: string;
+  /** Known for GST bills and newly added products; old pre-GST lines take the product's rate on save. */
+  gstRate?: number;
   quantity: string;
   unitPrice: string;
 }
 
-// Mirrors the backend's rounding (utils/gst.ts) so the preview matches the saved bill.
+// Mirrors the backend's rounding so the preview matches the saved bill.
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const toNumber = (value: string) => (value.trim() === "" ? NaN : Number(value));
+
+/** Re-expresses a price when the bill switches between MRP (incl. GST) and B2B (excl. GST), keeping what the buyer pays. */
+function convertPrice(price: number, gstRate: number, to: PriceMode): number {
+  return round2(to === "exclusive" ? price / (1 + gstRate / 100) : price * (1 + gstRate / 100));
+}
 
 export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSaved: () => void }) {
   const [updateInvoice, { isLoading: isSaving }] = useUpdateInvoiceMutation();
@@ -35,21 +46,47 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
     address: invoice.customer.address ?? "",
     gstin: invoice.customer.gstin ?? "",
   });
+  // Keep an explicit state only if it differs from what "auto" would pick.
+  const [stateCode, setStateCode] = useState(() => {
+    const saved = invoice.placeOfSupply?.code ?? "";
+    const gstin = invoice.customer.gstin ?? "";
+    const auto = gstin ? gstinStateCode(gstin) : SUPPLIER_STATE_CODE;
+    return saved && saved !== auto ? saved : "";
+  });
   const [lines, setLines] = useState<Line[]>(
     invoice.items.map((item) => ({
       product: item.product,
       name: item.name,
+      gstRate: item.gstRate,
       quantity: String(item.quantity),
       unitPrice: String(item.unitPrice),
     })),
   );
-  const [gstEnabled, setGstEnabled] = useState(invoice.gst.enabled);
-  const [gstType, setGstType] = useState<GstType>(invoice.gst.type ?? "CGST_SGST");
-  const [gstPercentage, setGstPercentage] = useState(String(invoice.gst.enabled ? invoice.gst.percentage : 5));
   const [otherCharges, setOtherCharges] = useState(invoice.otherCharges ? String(invoice.otherCharges) : "");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(invoice.paymentMethod as PaymentMethod);
   const [note, setNote] = useState(invoice.note ?? "");
   const [error, setError] = useState<string | null>(null);
+
+  const hasGstin = customer.gstin.trim() !== "";
+  const priceMode: PriceMode = hasGstin ? "exclusive" : "inclusive";
+  const autoState = hasGstin && looksLikeGstin(customer.gstin) ? gstinStateCode(customer.gstin) : SUPPLIER_STATE_CODE;
+  const placeOfSupply = stateCode || autoState;
+  const supplyType = placeOfSupply === SUPPLIER_STATE_CODE ? "intra" : "inter";
+
+  function setGstin(value: string) {
+    const nextMode: PriceMode = value.trim() ? "exclusive" : "inclusive";
+    if (nextMode !== priceMode) {
+      // Buyer switched between B2B and retail: re-express prices so the amount paid stays the same.
+      setLines((prev) =>
+        prev.map((line) => {
+          const price = toNumber(line.unitPrice);
+          if (line.gstRate === undefined || !Number.isFinite(price)) return line;
+          return { ...line, unitPrice: String(convertPrice(price, line.gstRate, nextMode)) };
+        }),
+      );
+    }
+    setCustomer((c) => ({ ...c, gstin: value.toUpperCase() }));
+  }
 
   function updateLine(index: number, patch: Partial<Line>) {
     setLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
@@ -60,7 +97,10 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
     updateLine(index, { quantity: String(Math.max(1, current + step)) });
   }
 
-  function addProduct(product: Product) {
+  function addProduct(product: Product): string | null {
+    const price = priceMode === "exclusive" ? product.sellingPrice : product.mrp;
+    if (!price || price <= 0) return `Set this product's ${priceMode === "exclusive" ? "B2B price" : "MRP"} first.`;
+    if (product.gstRate === undefined || product.gstRate === null) return "Set this product's GST rate first.";
     setLines((prev) => {
       const existing = prev.findIndex((line) => line.product === product._id);
       if (existing !== -1) {
@@ -74,22 +114,29 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
           product: product._id,
           name: product.name,
           detail: `${product.type} · ${product.weightLabel} · ${product.sku}`,
+          gstRate: product.gstRate,
           quantity: "1",
-          unitPrice: String(product.sellingPrice),
+          unitPrice: String(price),
         },
       ];
     });
+    return null;
   }
 
-  const subtotal = round2(
-    lines.reduce((sum, line) => sum + (toNumber(line.quantity) || 0) * (toNumber(line.unitPrice) || 0), 0),
+  const allRatesKnown = lines.every((l) => l.gstRate !== undefined);
+  const preview = previewInvoiceTax(
+    lines.map((l) => ({ quantity: toNumber(l.quantity) || 0, unitPrice: toNumber(l.unitPrice) || 0, gstRate: l.gstRate ?? 0 })),
+    priceMode,
+    supplyType,
+    toNumber(otherCharges) || 0,
   );
-  const gstAmount = gstEnabled ? round2(subtotal * ((toNumber(gstPercentage) || 0) / 100)) : 0;
-  const otherChargesAmount = round2(toNumber(otherCharges) || 0);
-  const grandTotal = round2(subtotal + gstAmount + otherChargesAmount);
 
   function validate(): string | null {
     if (!customer.name.trim()) return "Customer name is required.";
+    if (hasGstin && !looksLikeGstin(customer.gstin)) return "The GSTIN should be 15 characters, like 20ABCDE1234F1Z5.";
+    if (!hasGstin && placeOfSupply !== SUPPLIER_STATE_CODE && !customer.address.trim()) {
+      return "An out-of-state buyer without a GSTIN needs their address on the bill.";
+    }
     if (lines.length === 0) return "A bill needs at least one item — add one, or delete the whole bill instead.";
     for (const line of lines) {
       const qty = toNumber(line.quantity);
@@ -97,11 +144,8 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
       const price = toNumber(line.unitPrice);
       if (!Number.isFinite(price) || price < 0) return `Enter a valid price for "${line.name}".`;
     }
-    const pct = toNumber(gstPercentage);
-    if (gstEnabled && (!Number.isFinite(pct) || pct < 0 || pct > 100)) return "GST % must be between 0 and 100.";
-    if (otherCharges && (!Number.isFinite(otherChargesAmount) || otherChargesAmount < 0)) {
-      return "Other charges can't be negative.";
-    }
+    const charges = toNumber(otherCharges);
+    if (otherCharges && (!Number.isFinite(charges) || charges < 0)) return "Other charges can't be negative.";
     return null;
   }
 
@@ -124,14 +168,14 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
           email: customer.email.trim(),
           address: customer.address.trim(),
           gstin: customer.gstin.trim().toUpperCase(),
+          stateCode: stateCode || undefined,
         },
         items: lines.map((line) => ({
           product: line.product,
           quantity: toNumber(line.quantity),
           unitPrice: toNumber(line.unitPrice),
         })),
-        gst: { enabled: gstEnabled, type: gstEnabled ? gstType : undefined, percentage: gstEnabled ? toNumber(gstPercentage) : 0 },
-        otherCharges: otherChargesAmount,
+        otherCharges: toNumber(otherCharges) || 0,
         paymentMethod,
         note: note.trim(),
       }).unwrap();
@@ -142,10 +186,15 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
     }
   }
 
+  const priceLabel = priceMode === "exclusive" ? "Rate excl. GST (₹)" : "MRP incl. GST (₹)";
+
   return (
     <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
       <section className="rounded-lg border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold text-foreground">Customer</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-foreground">Customer</h2>
+          <BuyerBadge priceMode={priceMode} />
+        </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Name *">
             <input
@@ -164,6 +213,18 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
               className="input"
             />
           </Field>
+          <Field label="GSTIN (makes it a B2B bill)">
+            <input
+              value={customer.gstin}
+              maxLength={15}
+              onChange={(e) => setGstin(e.target.value)}
+              placeholder="Blank for retail"
+              className="input uppercase"
+            />
+          </Field>
+          <Field label="Place of supply">
+            <PlaceOfSupplySelect value={stateCode} autoCode={autoState} onChange={setStateCode} />
+          </Field>
           <Field label="Company">
             <input value={customer.company} onChange={(e) => setCustomer({ ...customer, company: e.target.value })} className="input" />
           </Field>
@@ -175,18 +236,13 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
               className="input"
             />
           </Field>
-          <Field label="GSTIN">
-            <input
-              value={customer.gstin}
-              maxLength={15}
-              onChange={(e) => setCustomer({ ...customer, gstin: e.target.value.toUpperCase() })}
-              className="input uppercase"
-            />
-          </Field>
-          <Field label="Address">
+          <Field label="Address" className="sm:col-span-2">
             <input value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} className="input" />
           </Field>
         </div>
+        <p className="mt-2 text-xs text-muted">
+          {GST_STATES[placeOfSupply]} · {supplyType === "intra" ? "CGST + SGST" : "IGST"}
+        </p>
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
@@ -198,13 +254,16 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
         ) : (
           <ul className="mt-3 flex flex-col divide-y divide-border">
             {lines.map((line, index) => {
-              const lineTotal = round2((toNumber(line.quantity) || 0) * (toNumber(line.unitPrice) || 0));
+              const taxed = preview.lines[index];
               return (
                 <li key={line.product} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{line.name}</p>
-                      {line.detail && <p className="text-xs text-muted">{line.detail} · new</p>}
+                      <p className="text-xs text-muted">
+                        {line.detail ? `${line.detail} · new · ` : ""}
+                        {line.gstRate !== undefined ? `GST ${line.gstRate}%` : "GST rate from product on save"}
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -248,7 +307,7 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
                       </div>
                     </div>
                     <label className="flex flex-col gap-1">
-                      <span className="text-xs text-muted">Price (₹)</span>
+                      <span className="text-xs text-muted">{priceLabel}</span>
                       <input
                         type="number"
                         inputMode="decimal"
@@ -259,7 +318,14 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
                         className="input w-28"
                       />
                     </label>
-                    <p className="ml-auto pb-2.5 text-sm font-medium text-foreground">{formatCurrency(lineTotal)}</p>
+                    <div className="ml-auto pb-2.5 text-right">
+                      <p className="text-sm font-medium text-foreground">{taxed ? formatCurrency(taxed.total) : "—"}</p>
+                      {taxed && line.gstRate !== undefined && (
+                        <p className="text-xs text-muted">
+                          taxable {formatCurrency(taxed.taxableValue)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </li>
               );
@@ -271,33 +337,8 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold text-foreground">Tax & payment</h2>
-        <label className="mt-3 flex items-center gap-2 text-sm font-medium text-foreground">
-          <input type="checkbox" checked={gstEnabled} onChange={(e) => setGstEnabled(e.target.checked)} className="h-4 w-4" />
-          Apply GST
-        </label>
-        {gstEnabled && (
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <select value={gstType} onChange={(e) => setGstType(e.target.value as GstType)} aria-label="GST type" className="input">
-              <option value="CGST_SGST">CGST + SGST (same state)</option>
-              <option value="IGST">IGST (other state)</option>
-            </select>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              max="100"
-              step="0.01"
-              value={gstPercentage}
-              onChange={(e) => setGstPercentage(e.target.value)}
-              aria-label="GST %"
-              placeholder="GST %"
-              className="input"
-            />
-          </div>
-        )}
-
-        <Field label="Other charges (₹)" className="mt-3">
+        <h2 className="text-sm font-semibold text-foreground">Payment</h2>
+        <Field label={`Other charges — packing/delivery (${priceMode === "exclusive" ? "excl." : "incl."} GST, ₹)`}>
           <input
             type="number"
             inputMode="decimal"
@@ -338,29 +379,40 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
       <section className="rounded-lg border border-border bg-surface p-4">
         <dl className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <dt className="text-muted">Subtotal</dt>
-            <dd className="text-foreground">{formatCurrency(subtotal)}</dd>
+            <dt className="text-muted">Taxable value</dt>
+            <dd className="text-foreground">{formatCurrency(preview.taxableValue)}</dd>
           </div>
-          {gstEnabled && (
+          {supplyType === "intra" ? (
+            <>
+              <div className="flex justify-between">
+                <dt className="text-muted">CGST</dt>
+                <dd className="text-foreground">{formatCurrency(preview.cgst)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted">SGST</dt>
+                <dd className="text-foreground">{formatCurrency(preview.sgst)}</dd>
+              </div>
+            </>
+          ) : (
             <div className="flex justify-between">
-              <dt className="text-muted">GST ({toNumber(gstPercentage) || 0}%)</dt>
-              <dd className="text-foreground">{formatCurrency(gstAmount)}</dd>
-            </div>
-          )}
-          {otherChargesAmount > 0 && (
-            <div className="flex justify-between">
-              <dt className="text-muted">Other charges</dt>
-              <dd className="text-foreground">{formatCurrency(otherChargesAmount)}</dd>
+              <dt className="text-muted">IGST</dt>
+              <dd className="text-foreground">{formatCurrency(preview.igst)}</dd>
             </div>
           )}
           <div className="flex justify-between border-t border-border pt-1 text-base font-semibold">
             <dt className="text-foreground">Grand total</dt>
-            <dd className="text-foreground">{formatCurrency(grandTotal)}</dd>
+            <dd className="text-foreground">{formatCurrency(preview.grandTotal)}</dd>
           </div>
-          {grandTotal !== invoice.grandTotal && (
+          {preview.grandTotal !== invoice.grandTotal && (
             <p className="text-right text-xs text-muted">was {formatCurrency(invoice.grandTotal)}</p>
           )}
         </dl>
+        {!allRatesKnown && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-muted">
+            <Info size={14} className="mt-0.5 shrink-0" aria-hidden />
+            Some items come from an old pre-GST bill; their tax is worked out from the product&apos;s GST rate when you save.
+          </p>
+        )}
       </section>
 
       {error && (
@@ -381,14 +433,16 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
 }
 
 /** Search by name/SKU, or scan/type a barcode (a HID scanner types the digits + Enter). */
-function AddProductPicker({ onAdd }: { onAdd: (product: Product) => void }) {
+function AddProductPicker({ onAdd }: { onAdd: (product: Product) => string | null }) {
   const [query, setQuery] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
   const search = useDebouncedValue(query.trim());
   const { data: results, isFetching } = useListProductsQuery({ search }, { skip: search.length < 2 });
 
   function add(product: Product) {
-    onAdd(product);
-    setQuery("");
+    const failure = onAdd(product);
+    setProblem(failure ? `${product.name}: ${failure}` : null);
+    if (!failure) setQuery("");
   }
 
   return (
@@ -414,6 +468,7 @@ function AddProductPicker({ onAdd }: { onAdd: (product: Product) => void }) {
           className="input w-full pl-9"
         />
       </div>
+      {problem && <p className="mt-2 text-sm text-danger">{problem}</p>}
       {search.length >= 2 && (
         <ul className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border">
           {isFetching && !results && <li className="p-3 text-sm text-muted">Searching…</li>}
@@ -433,7 +488,11 @@ function AddProductPicker({ onAdd }: { onAdd: (product: Product) => void }) {
                     {product.sku} · {product.quantityInStock} in stock
                   </span>
                 </span>
-                <span className="shrink-0 text-sm text-foreground">{formatCurrency(product.sellingPrice)}</span>
+                <span className="shrink-0 text-right text-xs text-foreground">
+                  MRP {product.mrp ? formatCurrency(product.mrp) : "—"}
+                  <br />
+                  B2B {product.sellingPrice ? formatCurrency(product.sellingPrice) : "—"}
+                </span>
               </button>
             </li>
           ))}

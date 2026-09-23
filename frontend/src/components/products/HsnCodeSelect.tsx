@@ -13,14 +13,20 @@ export function HsnCodeSelect({
   className = "input",
 }: {
   value: string;
-  onChange: (code: string) => void;
+  /** gstRate: the chosen code's reference rate from the HSN list, if it has one. */
+  onChange: (code: string, gstRate: number | undefined) => void;
   className?: string;
 }) {
   const { data: codes, isLoading, isError } = useListHsnCodesQuery();
   const isKnown = !value || codes?.some((c) => c.code === value);
 
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={className} disabled={isLoading}>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value, codes?.find((c) => c.code === e.target.value)?.gstRate)}
+      className={className}
+      disabled={isLoading}
+    >
       <option value="">{isLoading ? "Loading…" : isError ? "Couldn't load HSN list" : "— None —"}</option>
       {!isKnown && <option value={value}>{value} (not in HSN list)</option>}
       {codes?.map((c) => (

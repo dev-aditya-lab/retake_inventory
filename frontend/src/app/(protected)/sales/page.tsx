@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ExternalLink, MessageCircle, Pencil, Search, Trash2, X } from "lucide-react";
+import { ExternalLink, Lock, MessageCircle, Pencil, Search, Trash2, Undo2, X } from "lucide-react";
 import { useListInvoicesQuery } from "@/lib/redux/features/invoices/invoicesApi";
 import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -12,6 +12,7 @@ import { ExportButtons } from "@/components/ExportButtons";
 import { Pagination } from "@/components/ui/Pagination";
 import { SendWhatsappDialog } from "@/components/sales/SendWhatsappDialog";
 import { CancelInvoiceDialog } from "@/components/sales/CancelInvoiceDialog";
+import { ReturnItemsDialog } from "@/components/sales/ReturnItemsDialog";
 import { formatCurrency, formatDateTime, localDayBoundaryIso } from "@/lib/format";
 import { PAYMENT_METHODS } from "@/types/cart";
 import type { InvoiceListItem, InvoiceStatus } from "@/types/invoice";
@@ -48,6 +49,7 @@ function SalesList() {
 
   const [whatsappFor, setWhatsappFor] = useState<InvoiceListItem | null>(null);
   const [cancelFor, setCancelFor] = useState<InvoiceListItem | null>(null);
+  const [returnFor, setReturnFor] = useState<string | null>(null);
 
   const { data, isFetching, isLoading, isError, refetch } = useListInvoicesQuery(
     {
@@ -121,6 +123,7 @@ function SalesList() {
           <option value="">All bills</option>
           <option value="paid">Paid</option>
           <option value="void">Cancelled</option>
+          <option value="credited">Credited (reversed)</option>
         </select>
         <input
           type="date"
@@ -182,6 +185,7 @@ function SalesList() {
               isAdmin={isAdmin}
               onWhatsapp={() => setWhatsappFor(invoice)}
               onCancel={() => setCancelFor(invoice)}
+              onReturn={() => setReturnFor(invoice.invoiceNumber)}
             />
           ))}
         </ul>
@@ -191,6 +195,7 @@ function SalesList() {
 
       <SendWhatsappDialog invoice={whatsappFor} onClose={() => setWhatsappFor(null)} />
       <CancelInvoiceDialog invoice={cancelFor} onClose={() => setCancelFor(null)} />
+      <ReturnItemsDialog invoiceNumber={returnFor} onClose={() => setReturnFor(null)} />
     </div>
   );
 }
@@ -200,25 +205,49 @@ function SaleRow({
   isAdmin,
   onWhatsapp,
   onCancel,
+  onReturn,
 }: {
   invoice: InvoiceListItem;
   isAdmin: boolean;
   onWhatsapp: () => void;
   onCancel: () => void;
+  onReturn: () => void;
 }) {
   const isCancelled = invoice.status === "void";
+  const isCredited = invoice.status === "credited";
+  const isClosed = isCancelled || isCredited;
+  const partlyReturned = !isCredited && (invoice.creditedTotal ?? 0) > 0;
+  // A filed month's bill can't be edited — only returned against via a credit note.
+  const isGstBill = invoice.gstVersion === 2;
 
   return (
     <li className={`rounded-lg border border-border bg-background p-3 ${isCancelled ? "bg-surface" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
-            <span className={isCancelled ? "text-muted line-through" : ""}>{invoice.invoiceNumber}</span>
+            <span className={isClosed ? "text-muted line-through" : ""}>{invoice.invoiceNumber}</span>
             {isCancelled && (
               <span className="rounded-full bg-chilli-100 px-2 py-0.5 text-xs font-medium text-chilli-700">Cancelled</span>
             )}
-            {!isCancelled && invoice.editedAt && (
+            {isCredited && (
+              <span className="rounded-full bg-chilli-100 px-2 py-0.5 text-xs font-medium text-chilli-700">Credited</span>
+            )}
+            {partlyReturned && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                Returned {formatCurrency(invoice.creditedTotal ?? 0)}
+              </span>
+            )}
+            {!isClosed && invoice.editedAt && (
               <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600">Edited</span>
+            )}
+            {invoice.buyerType === "B2B" && (
+              <span className="rounded-full bg-leaf-100 px-2 py-0.5 text-xs font-medium text-leaf-700">B2B</span>
+            )}
+            {invoice.gstLocked && !isCancelled && (
+              <span className="flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600">
+                <Lock size={11} aria-hidden />
+                GST filed
+              </span>
             )}
           </p>
           <p className="mt-0.5 truncate text-sm text-foreground">
@@ -233,7 +262,7 @@ function SaleRow({
             <p className="mt-0.5 text-xs text-muted">Reason: {invoice.cancelReason}</p>
           )}
         </div>
-        <p className={`shrink-0 text-base font-semibold ${isCancelled ? "text-muted line-through" : "text-foreground"}`}>
+        <p className={`shrink-0 text-base font-semibold ${isClosed ? "text-muted line-through" : "text-foreground"}`}>
           {formatCurrency(invoice.grandTotal)}
         </p>
       </div>
@@ -247,7 +276,7 @@ function SaleRow({
           <ExternalLink size={14} aria-hidden />
           View
         </Link>
-        {!isCancelled && (
+        {!isClosed && (
           <button
             type="button"
             onClick={onWhatsapp}
@@ -257,15 +286,28 @@ function SaleRow({
             {invoice.whatsappSentAt ? "Resend WhatsApp" : "Send WhatsApp"}
           </button>
         )}
-        {isAdmin && !isCancelled && (
+        {isAdmin && !isClosed && (
           <>
-            <Link
-              href={`/sales/${invoice.invoiceNumber}/edit`}
-              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-ink-100"
-            >
-              <Pencil size={14} aria-hidden />
-              Edit
-            </Link>
+            {invoice.gstLocked ? (
+              isGstBill && (
+                <button
+                  type="button"
+                  onClick={onReturn}
+                  className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-ink-100"
+                >
+                  <Undo2 size={14} aria-hidden />
+                  Return items
+                </button>
+              )
+            ) : (
+              <Link
+                href={`/sales/${invoice.invoiceNumber}/edit`}
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-ink-100"
+              >
+                <Pencil size={14} aria-hidden />
+                Edit
+              </Link>
+            )}
             <button
               type="button"
               onClick={onCancel}

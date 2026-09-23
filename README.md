@@ -78,3 +78,28 @@ One-time data migrations in `backend/src/migrations` run automatically on backen
 once per database, tracked in the `migrations` collection). The first boot after this was added seeds
 the SKU code list, fills the HSN list from codes already on products, and builds the customer
 directory from past invoices.
+
+## GST (tax invoices, GSTR-1, GSTR-3B)
+
+Every bill is a GST tax invoice (CGST Rule 46). Rules live in `backend/src/config/gst.ts`; the tax
+maths in `backend/src/utils/gstCalc.ts`; the GSTR-1 file builder in `backend/src/utils/gstr1.ts`
+(all unit-tested).
+
+- **Pricing:** a buyer with a GSTIN is B2B — the product's B2B price (excl. GST) + GST on top. Everyone
+  else is retail — the MRP, with the GST worked out inside it. Each product needs an HSN code
+  (4+ digits), GST rate, unit (UQC) and MRP; the **GST → Setup check** page lists what's missing and
+  fixes HSN/rate in bulk.
+- **Place of supply:** the shop's state (`company.stateCode`, must match the GSTIN) unless the buyer's
+  GSTIN or recorded address is in another state → CGST+SGST or IGST is decided automatically.
+- **Numbers:** `RTK-YYMMDD-NNNN` bills, `CN-YYMMDD-NNNN` credit notes — within GST's 16-character limit,
+  dated in India time whatever the server's time zone.
+- **Filing:** GST → GSTR-1 → download the JSON → gst.gov.in → GSTR-1 → Prepare Offline → Upload → file
+  with EVC/DSC → back in the app, **Mark as filed**. The download is refused while anything would make
+  the portal reject it.
+- **After filing** a month its bills lock. Returns and deletions become credit notes (reported in the
+  month they're issued); credit notes are allowed until 30 Nov after the sale's financial year.
+- **GSTR-3B:** its sales tables auto-fill from GSTR-1 on the portal (locked since July 2025); the GST
+  page shows the same figures to check. Input tax credit comes from GSTR-2B on the portal — this app
+  doesn't record purchases.
+- Not covered: e-invoicing/IRN (only needed above ₹5 crore turnover), e-way bills, nil-rated/exempt
+  sales (GSTR-1 Table 8), exports.

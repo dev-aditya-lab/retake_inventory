@@ -28,7 +28,7 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   const user = await User.findByIdAndUpdate(
     id,
     req.body as { name?: string; phone?: string; role?: UserRole; isActive?: boolean },
-    { new: true, runValidators: true },
+    { returnDocument: "after", runValidators: true },
   );
   if (!user) {
     throw ApiError.notFound("User not found");

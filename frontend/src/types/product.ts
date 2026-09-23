@@ -16,7 +16,14 @@ export interface Product {
   hsnCode: string;
   image: string;
   costPrice: number;
+  /** B2B price, excluding GST. */
   sellingPrice: number;
+  /** Retail MRP, including GST. */
+  mrp?: number;
+  /** GST rate in %. */
+  gstRate?: number;
+  /** Unit Quantity Code, e.g. PAC. */
+  uqc?: string;
   quantityInStock: number;
   lowStockThreshold: number;
   note: string;

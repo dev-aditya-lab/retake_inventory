@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gstRateSchema, hsnCodeSchema, uqcSchema } from "./gst.validators";
 
 export const createProductSchema = z.object({
   category: z.string().trim().min(1),
@@ -11,10 +12,15 @@ export const createProductSchema = z.object({
   barcode: z.string().regex(/^\d{13}$/, "Must be a 13-digit EAN-13 code").optional(),
   // Required for external products; auto-generated from the SKU scheme for Retake's own products if omitted.
   sku: z.string().trim().min(1).optional(),
-  hsnCode: z.string().trim().optional(),
+  hsnCode: z.union([z.literal(""), hsnCodeSchema]).optional(),
   image: z.string().url().optional(),
   costPrice: z.number().min(0).optional(),
+  // B2B price excluding GST.
   sellingPrice: z.number().min(0).optional(),
+  // Retail MRP including GST.
+  mrp: z.number().min(0).optional(),
+  gstRate: gstRateSchema.optional(),
+  uqc: uqcSchema.optional(),
   quantityInStock: z.number().min(0).optional(),
   lowStockThreshold: z.number().min(0).optional(),
   note: z.string().optional(),
@@ -29,10 +35,13 @@ export const updateProductSchema = z.object({
   sku: z.string().trim().min(1).max(40).optional(),
   barcode: z.string().regex(/^\d{13}$/, "Must be a 13-digit EAN-13 code").optional(),
   category: z.string().trim().min(1).optional(),
-  hsnCode: z.string().trim().optional(),
+  hsnCode: z.union([z.literal(""), hsnCodeSchema]).optional(),
   image: z.string().url().optional(),
   costPrice: z.number().min(0).optional(),
   sellingPrice: z.number().min(0).optional(),
+  mrp: z.number().min(0).optional(),
+  gstRate: gstRateSchema.optional(),
+  uqc: uqcSchema.optional(),
   lowStockThreshold: z.number().min(0).optional(),
   note: z.string().optional(),
   isActive: z.boolean().optional(),

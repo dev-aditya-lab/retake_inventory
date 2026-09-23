@@ -8,6 +8,7 @@ import {
   Contact,
   Tags,
   Hash,
+  Landmark,
   BarChart3,
   Users,
 } from "lucide-react";
@@ -29,6 +30,7 @@ export const navItems: NavItem[] = [
   { label: "Billing", href: "/billing", icon: Receipt, mobilePriority: true },
   { label: "Barcode", href: "/barcode", icon: ScanBarcode, mobilePriority: true },
   { label: "Sales", href: "/sales", icon: ReceiptText },
+  { label: "GST", href: "/gst", icon: Landmark, roles: ["admin"] },
   { label: "Customers", href: "/customers", icon: Contact, roles: ["admin"] },
   { label: "SKU codes", href: "/sku-codes", icon: Tags, roles: ["admin"] },
   { label: "HSN codes", href: "/hsn-codes", icon: Hash, roles: ["admin"] },

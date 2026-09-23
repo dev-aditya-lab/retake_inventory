@@ -12,8 +12,14 @@ export const company = {
   contactNumber: "+91 8506933428",
   email: "info@devaditya.dev",
   gstin: "20DQZPG0668A1Z0",
+  // GST state code of the registration — must match the GSTIN's first two
+  // digits (checked on startup). Decides CGST+SGST vs IGST on every bill.
+  stateCode: "20",
   website: "https://retake.devaditya.dev",
   logoPath: "src/assets/logo.png",
-  invoicePrefix: "RTK-INV",
+  // Bill numbers are {prefix}-YYMMDD-NNNN. GST caps them at 16 characters
+  // (CGST Rule 46(b)), so keep prefixes short: RTK-260923-0001 is 15.
+  invoicePrefix: "RTK",
+  creditNotePrefix: "CN",
   countryCode: "890", // EAN-13 country prefix used in the barcode scheme
 } as const;

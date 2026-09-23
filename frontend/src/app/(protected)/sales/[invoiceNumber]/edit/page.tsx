@@ -63,7 +63,22 @@ function EditSale({ invoiceNumber }: { invoiceNumber: string }) {
           This bill was cancelled, so it can&apos;t be edited.
         </p>
       )}
-      {invoice && invoice.status !== "void" && (
+      {invoice?.status === "credited" && (
+        <p className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm text-muted">
+          This bill was reversed by a credit note, so it can&apos;t be edited.
+        </p>
+      )}
+      {invoice && invoice.status === "paid" && invoice.gstLocked && (
+        <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-foreground">
+          <p className="font-medium">This bill&apos;s month is already filed in GSTR-1.</p>
+          <p className="mt-1 text-muted">
+            A filed bill can&apos;t be changed. On the Sales page, use <strong>Return items</strong> for goods that came back,
+            or <strong>Delete</strong> to reverse the whole bill — both issue a credit note for this month&apos;s return. For
+            anything else, make a new bill.
+          </p>
+        </div>
+      )}
+      {invoice && invoice.status === "paid" && !invoice.gstLocked && (
         // Re-keyed on every save so the form restarts from the server's recalculated bill.
         <InvoiceEditForm key={invoice.updatedAt} invoice={invoice} onSaved={() => setJustSaved(true)} />
       )}

@@ -7,6 +7,7 @@ import { useCreateProductMutation, useLazyDecodeBarcodeQuery } from "@/lib/redux
 import { useListSkuCodesQuery } from "@/lib/redux/features/catalog/catalogApi";
 import { ScannerInput } from "@/components/scanner/ScannerInput";
 import { HsnCodeSelect } from "@/components/products/HsnCodeSelect";
+import { GstRateSelect, UqcSelect } from "@/components/products/GstFields";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { PRODUCT_TYPES, WEIGHT_LABELS, type ProductType } from "@/types/product";
 
@@ -31,6 +32,10 @@ export default function NewProductPage() {
   const [hsnCode, setHsnCode] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
+  const [mrp, setMrp] = useState("");
+  // Spices and masalas are 5% GST; the HSN pick below can change it.
+  const [gstRate, setGstRate] = useState("5");
+  const [uqc, setUqc] = useState("PAC");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -80,6 +85,9 @@ export default function NewProductPage() {
         hsnCode: hsnCode || undefined,
         costPrice: costPrice ? Number(costPrice) : undefined,
         sellingPrice: sellingPrice ? Number(sellingPrice) : undefined,
+        mrp: mrp ? Number(mrp) : undefined,
+        gstRate: gstRate ? Number(gstRate) : undefined,
+        uqc,
         note: note || undefined,
       }).unwrap();
       router.push(`/products/${product._id}`);
@@ -185,17 +193,36 @@ export default function NewProductPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Cost price (₹)">
-            <input type="number" min="0" step="0.01" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className="input" />
+          <Field label="MRP, incl. GST (₹)">
+            <input type="number" min="0" step="0.01" value={mrp} onChange={(e) => setMrp(e.target.value)} placeholder="Retail price" className="input" />
           </Field>
-          <Field label="Selling price (₹)">
+          <Field label="B2B price, excl. GST (₹)">
             <input type="number" min="0" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} className="input" />
           </Field>
         </div>
 
-        <Field label="HSN/SAC code">
-          <HsnCodeSelect value={hsnCode} onChange={setHsnCode} />
+        <Field label="Cost price (₹)">
+          <input type="number" min="0" step="0.01" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className="input" />
         </Field>
+
+        <Field label="HSN/SAC code">
+          <HsnCodeSelect
+            value={hsnCode}
+            onChange={(code, rate) => {
+              setHsnCode(code);
+              if (rate !== undefined && rate !== null) setGstRate(String(rate));
+            }}
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="GST rate">
+            <GstRateSelect value={gstRate} onChange={setGstRate} />
+          </Field>
+          <Field label="Unit (for GST returns)">
+            <UqcSelect value={uqc} onChange={setUqc} />
+          </Field>
+        </div>
 
         <Field label="Note">
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="input" />

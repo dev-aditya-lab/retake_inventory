@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { redis } from "../config/redis";
 import { Product } from "../models/Product.model";
 import { ApiError } from "../utils/ApiError";
+import { company } from "../config/company";
+import { gstStateName } from "../config/gst";
+import { computeInvoiceTax } from "../utils/gstCalc";
+import { lineFromProduct, productGstProblems, resolveBuyer, type BuyerContext } from "./gstDocument.service";
 import type { CartCustomer, CartData, CartGst, PaymentMethod } from "../types/cart";
 
 // Draft carts are ephemeral working state (not yet a real sale) — Redis is
@@ -150,4 +154,80 @@ export async function discardCart(userId: string, id: string): Promise<void> {
   await getCart(userId, id); // ownership check — throws if not found/not yours
   await redis.del(cartKey(id));
   await redis.srem(userCartsKey(userId), id);
+}
+
+/**
+ * What the bill will look like if checked out now: B2B or retail pricing,
+ * place of supply, each line's price and tax, the totals, and anything that
+ * would stop checkout (a bad GSTIN, a product missing its HSN/MRP…). Uses the
+ * same rules as checkout, so the counter screen always matches the invoice.
+ */
+export async function previewCart(cart: CartData) {
+  const problems: string[] = [];
+
+  let buyer: BuyerContext;
+  try {
+    buyer = resolveBuyer(cart.customer);
+  } catch (err) {
+    problems.push(err instanceof ApiError ? err.message : "Check the customer details");
+    buyer = {
+      buyerType: "B2C",
+      gstin: "",
+      priceMode: "inclusive",
+      placeOfSupply: { code: company.stateCode, name: gstStateName(company.stateCode) },
+      supplyType: "intra",
+    };
+  }
+
+  const products = await Product.find({ _id: { $in: cart.items.map((i) => i.productId) } }).lean();
+  const byId = new Map(products.map((p) => [String(p._id), p]));
+
+  const lines = [];
+  for (const item of cart.items) {
+    const product = byId.get(item.productId);
+    if (!product) {
+      problems.push(`"${item.name}" no longer exists — remove it`);
+      continue;
+    }
+    const missing = productGstProblems(product, buyer.priceMode);
+    if (missing.length > 0) {
+      problems.push(`"${product.name}" needs its ${missing.join(", ")} set before it can be billed`);
+      continue;
+    }
+    lines.push(lineFromProduct(product, item.quantity, buyer.priceMode));
+  }
+
+  const tax = lines.length > 0
+    ? computeInvoiceTax({ lines, priceMode: buyer.priceMode, supplyType: buyer.supplyType, otherCharges: cart.otherCharges })
+    : null;
+
+  return {
+    buyerType: buyer.buyerType,
+    priceMode: buyer.priceMode,
+    placeOfSupply: buyer.placeOfSupply,
+    supplyType: buyer.supplyType,
+    lines: tax?.lines.map((l) => ({
+      productId: l.product,
+      unitPrice: l.unitPrice,
+      gstRate: l.gstRate,
+      taxableValue: l.taxableValue,
+      cgst: l.cgst,
+      sgst: l.sgst,
+      igst: l.igst,
+      total: l.total,
+    })) ?? [],
+    otherCharges: tax?.otherCharges ?? null,
+    rateSummary: tax?.rateSummary ?? [],
+    taxableValue: tax?.taxableValue ?? 0,
+    cgst: tax?.cgst ?? 0,
+    sgst: tax?.sgst ?? 0,
+    igst: tax?.igst ?? 0,
+    totalTax: tax?.totalTax ?? 0,
+    grandTotal: tax?.grandTotal ?? 0,
+    problems,
+  };
+}
+
+export async function withPreview(cart: CartData) {
+  return { ...cart, preview: await previewCart(cart) };
 }

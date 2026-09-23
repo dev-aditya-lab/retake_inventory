@@ -3,9 +3,22 @@ import ExcelJS from "exceljs";
 import { Product } from "../models/Product.model";
 import * as productService from "./product.service";
 import { ApiError } from "../utils/ApiError";
+import { UQC_CODES, isValidGstRate } from "../config/gst";
 
 const MAX_ROWS = 1000;
-const UPDATABLE_FIELDS = ["costPrice", "sellingPrice", "hsnCode", "lowStockThreshold", "note", "isActive"] as const;
+// MRP, GST rate and unit are here so a whole catalogue can be made GST-ready
+// in one pass: export → fill the columns in Excel → import.
+const UPDATABLE_FIELDS = [
+  "costPrice",
+  "sellingPrice",
+  "mrp",
+  "gstRate",
+  "uqc",
+  "hsnCode",
+  "lowStockThreshold",
+  "note",
+  "isActive",
+] as const;
 
 export interface ImportRowResult {
   row: number;
@@ -19,6 +32,9 @@ interface ParsedRow {
   sku: string;
   costPrice?: number;
   sellingPrice?: number;
+  mrp?: number;
+  gstRate?: number;
+  uqc?: string;
   hsnCode?: string;
   lowStockThreshold?: number;
   note?: string;
@@ -76,10 +92,20 @@ function normalizeRow(raw: Record<string, unknown>): ParsedRow | { error: string
   const sku = parseString(raw["SKU"] ?? raw.sku)?.toUpperCase();
   if (!sku) return { error: "Missing SKU" };
 
+  const gstRate = parseNumber(raw["GST Rate %"] ?? raw["GST Rate"] ?? raw.gstRate);
+  if (gstRate !== undefined && !isValidGstRate(gstRate)) return { error: `GST rate ${gstRate}% isn't a rate the GST portal accepts` };
+  const uqc = parseString(raw["UQC"] ?? raw.uqc)?.toUpperCase();
+  if (uqc && !(uqc in UQC_CODES)) return { error: `Unknown unit "${uqc}" — use a GST UQC like PAC or NOS` };
+  const hsn = parseString(raw["HSN Code"] ?? raw.hsnCode);
+  if (hsn && !/^\d{4,8}$/.test(hsn)) return { error: `HSN code "${hsn}" must be 4 to 8 digits` };
+
   return {
     sku,
     costPrice: parseNumber(raw["Cost Price"] ?? raw.costPrice),
-    sellingPrice: parseNumber(raw["Selling Price"] ?? raw.sellingPrice),
+    sellingPrice: parseNumber(raw["B2B Price (excl GST)"] ?? raw["Selling Price"] ?? raw.sellingPrice),
+    mrp: parseNumber(raw["MRP (incl GST)"] ?? raw["MRP"] ?? raw.mrp),
+    gstRate: parseNumber(raw["GST Rate %"] ?? raw["GST Rate"] ?? raw.gstRate),
+    uqc: parseString(raw["UQC"] ?? raw.uqc)?.toUpperCase() || undefined,
     hsnCode: parseString(raw["HSN Code"] ?? raw.hsnCode),
     lowStockThreshold: parseNumber(raw["Low Stock Threshold"] ?? raw.lowStockThreshold),
     note: parseString(raw["Note"] ?? raw.note),

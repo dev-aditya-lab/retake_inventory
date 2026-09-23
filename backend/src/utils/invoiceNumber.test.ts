@@ -1,22 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { dateKeyFor, formatInvoiceNumber } from "./invoiceNumber";
+import { documentSeries, documentSequence, formatDocumentNumber, isGstValidDocumentNumber } from "./invoiceNumber";
 
-describe("dateKeyFor", () => {
-  it("formats as YYMMDD", () => {
-    expect(dateKeyFor(new Date(2026, 6, 21))).toBe("260721");
+describe("formatDocumentNumber", () => {
+  it("builds RTK-YYMMDD-NNNN with a zero-padded counter", () => {
+    expect(formatDocumentNumber("RTK", "260923", 7)).toBe("RTK-260923-0007");
+    expect(formatDocumentNumber("CN", "260923", 1)).toBe("CN-260923-0001");
   });
 
-  it("pads single-digit months and days", () => {
-    expect(dateKeyFor(new Date(2026, 0, 5))).toBe("260105");
+  it("stays within GST's 16-character limit", () => {
+    expect(isGstValidDocumentNumber(formatDocumentNumber("RTK", "260923", 9999))).toBe(true);
+    expect(isGstValidDocumentNumber("RTK-INV-260923-0001")).toBe(false); // the old 19-char format
+  });
+
+  it("doesn't truncate counters past 9999", () => {
+    expect(formatDocumentNumber("RTK", "260923", 12345)).toBe("RTK-260923-12345");
   });
 });
 
-describe("formatInvoiceNumber", () => {
-  it("zero-pads the sequence to 4 digits", () => {
-    expect(formatInvoiceNumber("RTK-INV", "260721", 7)).toBe("RTK-INV-260721-0007");
-  });
-
-  it("does not truncate a sequence already >= 4 digits", () => {
-    expect(formatInvoiceNumber("RTK-INV", "260721", 12345)).toBe("RTK-INV-260721-12345");
+describe("documentSeries / documentSequence", () => {
+  it("splits a number into its daily series and counter", () => {
+    expect(documentSeries("RTK-260923-0012")).toBe("RTK-260923-");
+    expect(documentSequence("RTK-260923-0012")).toBe(12);
+    expect(documentSeries("RTK-INV-260720-0002")).toBe("RTK-INV-260720-");
   });
 });

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { company } from "@/config/company";
 import { InvoiceBarcode } from "./InvoiceBarcode";
+import { TaxDocumentView } from "./TaxDocumentView";
 import type { Invoice } from "@/types/invoice";
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
@@ -16,6 +17,18 @@ const PAYMENT_METHODS: { value: string; label: string }[] = [
  * single source of truth for what an invoice looks like.
  */
 export function InvoiceView({ invoice }: { invoice: Invoice }) {
+  if (invoice.gstVersion === 2) {
+    return (
+      <TaxDocumentView
+        title="TAX INVOICE"
+        doc={{ ...invoice, number: invoice.invoiceNumber, date: invoice.billingDate }}
+        paymentMethod={invoice.paymentMethod}
+        cancelled={invoice.status === "void"}
+      />
+    );
+  }
+
+  // Bills made before GST billing was set up keep their original layout.
   return (
     <div id="invoice-print-area" className="mx-auto max-w-2xl bg-white p-6 text-ink-900 print:max-w-none print:p-0">
       {invoice.status === "void" && (

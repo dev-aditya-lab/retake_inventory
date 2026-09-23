@@ -1,30 +1,21 @@
 import mongoose from "mongoose";
-import { redis } from "../config/redis";
 import { logger } from "../config/logger";
 import { Invoice, type InvoiceStatus } from "../models/Invoice.model";
 import { Product } from "../models/Product.model";
 import { StockMovement } from "../models/StockMovement.model";
 import { ApiError } from "../utils/ApiError";
-import { numberToWordsINR } from "../utils/numberToWords";
 import { company } from "../config/company";
-import { calculateInvoiceTotals, round2, splitGst, type GstType } from "../utils/gst";
-import { dateKeyFor, formatInvoiceNumber } from "../utils/invoiceNumber";
 import { computeStockDeltas } from "../utils/invoiceEdit";
 import { escapeRegex } from "../utils/regex";
+import { gstPeriodOf } from "../utils/istDate";
 import * as cartService from "./cart.service";
 import * as customerService from "./customer.service";
+import * as creditNoteService from "./creditNote.service";
+import { nextDocumentNumber } from "./documentNumber.service";
+import { buildGstDocument, lineFromProduct, resolveBuyer, type GstBillLine, type GstCustomerInput } from "./gstDocument.service";
+import { assertBillChangeable, isPeriodFiled } from "./gstFiling.service";
+import { GstFiling } from "../models/GstFiling.model";
 import type { PaymentMethod } from "../types/cart";
-
-const INVOICE_SEQ_TTL_SECONDS = 60 * 60 * 48; // spans a full day plus buffer past midnight rollover
-
-/** Atomically issues the next invoice number for today: RTK-INV-YYMMDD-XXXX. */
-async function nextInvoiceNumber(): Promise<string> {
-  const dateKey = dateKeyFor(new Date());
-  const seqKey = `invoice:seq:${dateKey}`;
-  const seq = await redis.incr(seqKey);
-  await redis.expire(seqKey, INVOICE_SEQ_TTL_SECONDS);
-  return formatInvoiceNumber(company.invoicePrefix, dateKey, seq);
-}
 
 export async function checkout(userId: string, cartId: string) {
   const cart = await cartService.getCart(userId, cartId);
@@ -32,29 +23,16 @@ export async function checkout(userId: string, cartId: string) {
   if (cart.items.length === 0) throw ApiError.badRequest("Cart is empty");
   if (!cart.customer.name?.trim()) throw ApiError.badRequest("Customer name is required");
   if (!cart.paymentMethod) throw ApiError.badRequest("Payment method is required");
-  if (cart.gst.enabled && !cart.gst.type) throw ApiError.badRequest("GST type (CGST+SGST or IGST) is required when GST is enabled");
 
-  const { subtotal, gstAmount, otherCharges, grandTotal } = calculateInvoiceTotals({
-    items: cart.items,
-    gstEnabled: cart.gst.enabled,
-    gstPercentage: cart.gst.percentage,
-    otherCharges: cart.otherCharges,
-  });
-
-  const gst = {
-    enabled: cart.gst.enabled,
-    type: cart.gst.type,
-    percentage: cart.gst.percentage,
-    amount: gstAmount,
-    ...splitGst(gstAmount, cart.gst.type, cart.gst.enabled),
-  };
+  const customer = { ...cart.customer, name: cart.customer.name.trim() };
+  const buyer = resolveBuyer(customer);
 
   const session = await mongoose.startSession();
   let invoiceId: mongoose.Types.ObjectId | undefined;
 
   try {
     await session.withTransaction(async () => {
-      // Validate stock for every line first — an insufficient-stock failure
+      // Validate stock and GST details for every line first — a failure
       // (the common case) then never burns an invoice number.
       const products = new Map<string, InstanceType<typeof Product>>();
       for (const item of cart.items) {
@@ -66,6 +44,11 @@ export async function checkout(userId: string, cartId: string) {
         products.set(item.productId, product);
       }
 
+      // Prices come from the product at checkout: B2B price for GSTIN buyers,
+      // MRP for everyone else.
+      const lines = cart.items.map((item) => lineFromProduct(products.get(item.productId)!, item.quantity, buyer.priceMode));
+      const { fields } = buildGstDocument({ customer, lines, otherCharges: cart.otherCharges });
+
       const resultingQuantities = new Map<string, number>();
       for (const item of cart.items) {
         const product = products.get(item.productId)!;
@@ -74,27 +57,14 @@ export async function checkout(userId: string, cartId: string) {
         resultingQuantities.set(item.productId, product.quantityInStock);
       }
 
-      const invoiceNumber = await nextInvoiceNumber();
+      const invoiceNumber = await nextDocumentNumber("invoice", company.invoicePrefix);
 
       const [created] = await Invoice.create(
         [
           {
             invoiceNumber,
             billingDate: new Date(),
-            customer: cart.customer,
-            items: cart.items.map((item) => ({
-              product: item.productId,
-              name: item.name,
-              hsnCode: item.hsnCode,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              total: round2(item.quantity * item.unitPrice),
-            })),
-            gst,
-            otherCharges,
-            subtotal,
-            grandTotal,
-            amountInWords: numberToWordsINR(grandTotal),
+            ...fields,
             paymentMethod: cart.paymentMethod,
             note: cart.note,
             createdBy: userId,
@@ -200,16 +170,24 @@ export async function listInvoices({ search, status, customerId, from, to, page,
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "invoiceNumber billingDate customer customerRef items.quantity grandTotal paymentMethod status whatsappSentAt editedAt cancelledAt cancelReason",
+        "invoiceNumber billingDate customer customerRef items.quantity grandTotal creditedTotal gstVersion buyerType paymentMethod status whatsappSentAt editedAt cancelledAt cancelReason",
       )
       .lean(),
     Invoice.countDocuments(query),
   ]);
 
+  const filed = new Set(
+    (await GstFiling.find({ period: { $in: [...new Set(invoices.map((inv) => gstPeriodOf(inv.billingDate)))] } }).select("period").lean()).map(
+      (f) => f.period,
+    ),
+  );
+
   return {
     items: invoices.map(({ items, ...invoice }) => ({
       ...invoice,
       itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      // Its month's GSTR-1 is filed: edits/deletes become credit notes.
+      gstLocked: filed.has(gstPeriodOf(invoice.billingDate)),
     })),
     total,
     page,
@@ -218,35 +196,26 @@ export async function listInvoices({ search, status, customerId, from, to, page,
 }
 
 export interface UpdateInvoiceInput {
-  customer: {
-    name: string;
-    company?: string;
-    address?: string;
-    phone?: string;
-    email?: string;
-    gstin?: string;
-  };
+  customer: GstCustomerInput & { name: string };
+  /** unitPrice is read per the buyer: excluding GST (B2B) or the MRP (retail). */
   items: { product: string; quantity: number; unitPrice: number }[];
-  gst: { enabled: boolean; type?: GstType; percentage: number };
   otherCharges: number;
   paymentMethod: PaymentMethod;
   note?: string;
 }
 
 /**
- * Admin correction of a completed sale. Recomputes every total server-side
- * and reconciles stock for any quantity change in the same transaction:
- * selling more takes units out of stock (refused if there aren't enough),
- * selling fewer or removing a line puts them back. The invoice number and
- * billing date never change.
+ * Admin correction of a completed sale, while its month's GSTR-1 is still
+ * unfiled. Every tax figure is recomputed server-side, and stock is
+ * reconciled for any quantity change in the same transaction: selling more
+ * takes units out of stock (refused if there aren't enough), selling fewer
+ * or removing a line puts them back. The invoice number and billing date
+ * never change. Once the month is filed, corrections are credit notes.
  */
 export async function updateInvoice(invoiceNumber: string, userId: string, input: UpdateInvoiceInput) {
   if (input.items.length === 0) throw ApiError.badRequest("An invoice needs at least one item");
   if (new Set(input.items.map((i) => i.product)).size !== input.items.length) {
     throw ApiError.badRequest("Each product can only appear once — combine the quantities into one line");
-  }
-  if (input.gst.enabled && !input.gst.type) {
-    throw ApiError.badRequest("GST type (CGST+SGST or IGST) is required when GST is enabled");
   }
 
   const session = await mongoose.startSession();
@@ -257,7 +226,11 @@ export async function updateInvoice(invoiceNumber: string, userId: string, input
       const invoice = await Invoice.findOne({ invoiceNumber }).session(session);
       if (!invoice) throw ApiError.notFound(`No invoice found for "${invoiceNumber}"`);
       if (invoice.status === "void") throw ApiError.badRequest("Cancelled invoices can't be edited");
+      if (invoice.status === "credited") throw ApiError.badRequest("This bill was reversed by a credit note and can't be edited");
+      await assertBillChangeable(invoice.billingDate, "edited");
       invoiceId = invoice._id as mongoose.Types.ObjectId;
+
+      const buyer = resolveBuyer(input.customer);
 
       const oldLines = invoice.items.map((item) => ({ productId: String(item.product), quantity: item.quantity }));
       const oldLineByProduct = new Map(invoice.items.map((item) => [String(item.product), item]));
@@ -267,11 +240,32 @@ export async function updateInvoice(invoiceNumber: string, userId: string, input
       const products = await Product.find({ _id: { $in: productIds } }).session(session);
       const productById = new Map(products.map((p) => [String(p._id), p]));
 
-      for (const item of input.items) {
-        if (!oldLineByProduct.has(item.product) && !productById.has(item.product)) {
-          throw ApiError.badRequest("One of the added products no longer exists — refresh and try again");
+      // Lines keep the GST details they were billed with; new lines (and old
+      // pre-GST lines) take the product's current HSN, rate and unit.
+      const lines: GstBillLine[] = input.items.map((item) => {
+        const existing = oldLineByProduct.get(item.product);
+        const product = productById.get(item.product);
+        if (existing && existing.gstRate != null && existing.hsnCode && existing.uqc) {
+          return {
+            product: item.product,
+            name: existing.name,
+            hsnCode: existing.hsnCode,
+            uqc: existing.uqc,
+            gstRate: existing.gstRate,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+          };
         }
-      }
+        if (!product) {
+          throw ApiError.badRequest(
+            existing
+              ? `"${existing.name}" was deleted from inventory and has no GST details — remove it from the bill`
+              : "One of the added products no longer exists — refresh and try again",
+          );
+        }
+        return { ...lineFromProduct(product, item.quantity, buyer.priceMode, item.unitPrice), name: existing?.name ?? product.name };
+      });
+      const { fields } = buildGstDocument({ customer: input.customer, lines, otherCharges: input.otherCharges });
 
       const movements: Record<string, unknown>[] = [];
       for (const [productId, delta] of computeStockDeltas(oldLines, newLines)) {
@@ -299,49 +293,7 @@ export async function updateInvoice(invoiceNumber: string, userId: string, input
         });
       }
 
-      invoice.set(
-        "items",
-        input.items.map((item) => {
-          const existingLine = oldLineByProduct.get(item.product);
-          const product = productById.get(item.product);
-          return {
-            product: item.product,
-            // Existing lines keep the name/HSN they were billed with; new lines snapshot the product now.
-            name: existingLine?.name ?? product!.name,
-            hsnCode: existingLine?.hsnCode ?? product!.hsnCode,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            total: round2(item.quantity * item.unitPrice),
-          };
-        }),
-      );
-
-      const totals = calculateInvoiceTotals({
-        items: input.items,
-        gstEnabled: input.gst.enabled,
-        gstPercentage: input.gst.percentage,
-        otherCharges: input.otherCharges,
-      });
-      invoice.set("gst", {
-        enabled: input.gst.enabled,
-        type: input.gst.enabled ? input.gst.type : undefined,
-        percentage: input.gst.enabled ? input.gst.percentage : 0,
-        amount: totals.gstAmount,
-        ...splitGst(totals.gstAmount, input.gst.type, input.gst.enabled),
-      });
-      invoice.subtotal = totals.subtotal;
-      invoice.otherCharges = totals.otherCharges;
-      invoice.grandTotal = totals.grandTotal;
-      invoice.amountInWords = numberToWordsINR(totals.grandTotal);
-
-      invoice.set("customer", {
-        name: input.customer.name.trim(),
-        company: input.customer.company ?? "",
-        address: input.customer.address ?? "",
-        phone: input.customer.phone ?? "",
-        email: input.customer.email ?? "",
-        gstin: input.customer.gstin?.toUpperCase() ?? "",
-      });
+      invoice.set(fields);
       invoice.paymentMethod = input.paymentMethod;
       invoice.note = input.note ?? "";
       invoice.editedAt = new Date();
@@ -359,12 +311,19 @@ export async function updateInvoice(invoiceNumber: string, userId: string, input
 }
 
 /**
- * "Deleting" an invoice: marks it cancelled (status "void") and returns every
- * item to stock. The record stays — invoice numbers are sequential and GST
- * records must not have gaps — but it drops out of reports and totals, and
- * the customer's link shows it as cancelled.
+ * "Deleting" an invoice. While its month's GSTR-1 is unfiled, the bill is
+ * cancelled (status "void") and its items go back to stock — GSTR-1 then
+ * lists it only as a cancelled document. Once the month is filed, a sale
+ * can't be erased: a credit note reverses it in the current month instead.
+ * Either way the record stays — invoice numbers must not have gaps.
  */
 export async function cancelInvoice(invoiceNumber: string, userId: string, reason?: string) {
+  const existing = await getInvoiceByNumber(invoiceNumber);
+  if (await isPeriodFiled(gstPeriodOf(existing.billingDate))) {
+    const creditNote = await creditNoteService.issueCreditNote({ invoiceNumber, userId, lines: "all", reason });
+    return { invoice: await getInvoiceByNumber(invoiceNumber), creditNote };
+  }
+
   const session = await mongoose.startSession();
 
   try {
@@ -372,6 +331,7 @@ export async function cancelInvoice(invoiceNumber: string, userId: string, reaso
       const invoice = await Invoice.findOne({ invoiceNumber }).session(session);
       if (!invoice) throw ApiError.notFound(`No invoice found for "${invoiceNumber}"`);
       if (invoice.status === "void") throw ApiError.badRequest("This invoice is already cancelled");
+      if (invoice.status === "credited") throw ApiError.badRequest("This bill was already reversed by a credit note");
 
       const movements: Record<string, unknown>[] = [];
       for (const item of invoice.items) {
@@ -401,7 +361,7 @@ export async function cancelInvoice(invoiceNumber: string, userId: string, reaso
     await session.endSession();
   }
 
-  return getInvoiceByNumber(invoiceNumber);
+  return { invoice: await getInvoiceByNumber(invoiceNumber), creditNote: null };
 }
 
 export async function markWhatsappSent(invoiceNumber: string) {

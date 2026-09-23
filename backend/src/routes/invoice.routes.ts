@@ -27,8 +27,11 @@ invoiceRouter.patch(
   validateBody(updateInvoiceSchema),
   invoiceController.updateInvoice,
 );
-// "Delete" = cancel: stock is returned and the bill leaves reports, but the record stays.
+// "Delete" = cancel (month unfiled) or a full credit note (month filed). The record always stays.
 invoiceRouter.post("/:invoiceNumber/cancel", authenticate, requireRole("admin"), invoiceController.cancelInvoice);
+// Returns after the month's GSTR-1 is filed — issued as credit notes.
+invoiceRouter.get("/:invoiceNumber/credit-notes", authenticate, invoiceController.listCreditNotes);
+invoiceRouter.post("/:invoiceNumber/credit-notes", authenticate, requireRole("admin"), invoiceController.issueCreditNote);
 
 // Any signed-in staff can (re)send a bill on WhatsApp. Still auth-gated
 // because each send is a billable Meta API call; the controller adds a short

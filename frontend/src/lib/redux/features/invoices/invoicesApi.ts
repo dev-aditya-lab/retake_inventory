@@ -1,6 +1,7 @@
 import { apiSlice, unwrap } from "../../apiSlice";
 import type { Invoice, InvoiceCustomer, InvoiceListItem, InvoiceStatus } from "@/types/invoice";
-import type { GstType, PaymentMethod } from "@/types/cart";
+import type { CreditNote } from "@/types/creditNote";
+import type { PaymentMethod } from "@/types/cart";
 import type { Paginated } from "@/types/pagination";
 
 export interface InvoiceListFilters {
@@ -17,9 +18,10 @@ export interface InvoiceListFilters {
 
 export interface UpdateInvoiceInput {
   invoiceNumber: string;
-  customer: InvoiceCustomer;
+  /** stateCode: place of supply (blank = from the GSTIN, or the shop's state). */
+  customer: InvoiceCustomer & { stateCode?: string };
+  /** unitPrice: excluding GST for a buyer with a GSTIN, the MRP otherwise. */
   items: { product: string; quantity: number; unitPrice: number }[];
-  gst: { enabled: boolean; type?: GstType; percentage: number };
   otherCharges: number;
   paymentMethod: PaymentMethod;
   note?: string;
@@ -34,13 +36,15 @@ function toQueryString(filters: InvoiceListFilters): string {
   return qs ? `?${qs}` : "";
 }
 
-// Editing or cancelling a bill moves stock and changes revenue, so it
-// refreshes products, reports and customer totals as well as the bill.
+// Editing or cancelling a bill moves stock and changes revenue and GST, so it
+// refreshes products, reports, customer totals and GST returns as well.
 const saleSideEffectTags = [
   { type: "Invoice" as const, id: "LIST" },
   { type: "Product" as const, id: "LIST" },
   "Report" as const,
   "Customer" as const,
+  "Gst" as const,
+  "CreditNote" as const,
 ];
 
 export const invoicesApi = apiSlice.injectEndpoints({
@@ -60,14 +64,37 @@ export const invoicesApi = apiSlice.injectEndpoints({
       transformResponse: unwrap<Invoice>,
       invalidatesTags: (_r, _e, { invoiceNumber }) => [{ type: "Invoice", id: invoiceNumber }, ...saleSideEffectTags],
     }),
-    cancelInvoice: builder.mutation<Invoice, { invoiceNumber: string; reason?: string }>({
+    /** Cancels the bill, or — if its month is filed — issues a full credit note (returned as creditNote). */
+    cancelInvoice: builder.mutation<
+      { invoice: Invoice; creditNote: CreditNote | null },
+      { invoiceNumber: string; reason?: string }
+    >({
       query: ({ invoiceNumber, reason }) => ({
         url: `/api/invoices/${invoiceNumber}/cancel`,
         method: "POST",
         body: { reason },
       }),
-      transformResponse: unwrap<Invoice>,
+      transformResponse: unwrap<{ invoice: Invoice; creditNote: CreditNote | null }>,
       invalidatesTags: (_r, _e, { invoiceNumber }) => [{ type: "Invoice", id: invoiceNumber }, ...saleSideEffectTags],
+    }),
+    listInvoiceCreditNotes: builder.query<CreditNote[], string>({
+      query: (invoiceNumber) => `/api/invoices/${invoiceNumber}/credit-notes`,
+      transformResponse: unwrap<CreditNote[]>,
+      providesTags: (_r, _e, invoiceNumber) => [{ type: "CreditNote", id: invoiceNumber }],
+    }),
+    /** Return some items from a filed month's bill — issued as a credit note. */
+    issueCreditNote: builder.mutation<
+      CreditNote,
+      { invoiceNumber: string; items: { product: string; quantity: number }[]; reason?: string }
+    >({
+      query: ({ invoiceNumber, ...body }) => ({ url: `/api/invoices/${invoiceNumber}/credit-notes`, method: "POST", body }),
+      transformResponse: unwrap<CreditNote>,
+      invalidatesTags: (_r, _e, { invoiceNumber }) => [{ type: "Invoice", id: invoiceNumber }, ...saleSideEffectTags],
+    }),
+    getCreditNote: builder.query<CreditNote, string>({
+      query: (noteNumber) => `/api/credit-notes/${noteNumber}`,
+      transformResponse: unwrap<CreditNote>,
+      providesTags: (_r, _e, noteNumber) => [{ type: "CreditNote", id: noteNumber }],
     }),
     sendInvoiceWhatsapp: builder.mutation<void, { invoiceNumber: string; phone?: string }>({
       query: ({ invoiceNumber, phone }) => ({
@@ -92,6 +119,9 @@ export const {
   useListInvoicesQuery,
   useUpdateInvoiceMutation,
   useCancelInvoiceMutation,
+  useListInvoiceCreditNotesQuery,
+  useIssueCreditNoteMutation,
+  useGetCreditNoteQuery,
   useSendInvoiceWhatsappMutation,
   useSendInvoiceEmailMutation,
 } = invoicesApi;

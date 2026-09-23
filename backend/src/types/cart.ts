@@ -5,6 +5,8 @@ export interface CartCustomer {
   phone?: string;
   email?: string;
   gstin?: string;
+  /** Place of supply (GST state code). Blank = from the GSTIN, or the shop's own state. */
+  stateCode?: string;
 }
 
 export interface CartItem {

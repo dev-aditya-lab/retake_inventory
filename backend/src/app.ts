@@ -16,6 +16,8 @@ import { reportRouter } from "./routes/report.routes";
 import { catalogCodeRouter } from "./routes/catalogCode.routes";
 import { hsnCodeRouter } from "./routes/hsnCode.routes";
 import { customerRouter } from "./routes/customer.routes";
+import { gstRouter } from "./routes/gst.routes";
+import { creditNoteRouter } from "./routes/creditNote.routes";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { apiLimiter } from "./middleware/rateLimit";
 
@@ -52,6 +54,8 @@ export function createApp() {
   app.use("/api/sku-codes", catalogCodeRouter);
   app.use("/api/hsn-codes", hsnCodeRouter);
   app.use("/api/customers", customerRouter);
+  app.use("/api/gst", gstRouter);
+  app.use("/api/credit-notes", creditNoteRouter);
 
   // Further feature routers are mounted here as each phase lands.
 

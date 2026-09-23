@@ -36,7 +36,12 @@ interface CreateProductInput {
   sku?: string;
   hsnCode?: string;
   costPrice?: number;
+  /** B2B price, excluding GST. */
   sellingPrice?: number;
+  /** Retail MRP, including GST. */
+  mrp?: number;
+  gstRate?: number;
+  uqc?: string;
   note?: string;
 }
 
@@ -54,6 +59,9 @@ export interface UpdateProductInput {
   hsnCode?: string;
   costPrice?: number;
   sellingPrice?: number;
+  mrp?: number;
+  gstRate?: number;
+  uqc?: string;
   lowStockThreshold?: number;
   note?: string;
   isActive?: boolean;

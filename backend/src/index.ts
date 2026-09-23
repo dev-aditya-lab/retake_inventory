@@ -4,11 +4,13 @@ import { logger } from "./config/logger";
 import { connectDatabase, disconnectDatabase } from "./config/database";
 import { connectRedis, disconnectRedis } from "./config/redis";
 import { runMigrations } from "./migrations";
+import { gstConfigProblems } from "./services/gstReturn.service";
 
 async function main() {
   await connectDatabase();
   await connectRedis();
   await runMigrations();
+  for (const problem of gstConfigProblems()) logger.error(`GST setup: ${problem}`);
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

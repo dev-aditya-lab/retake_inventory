@@ -1,5 +1,8 @@
 import type { Request, Response } from "express";
 import * as invoiceService from "../services/invoice.service";
+import * as creditNoteService from "../services/creditNote.service";
+import { isPeriodFiled } from "../services/gstFiling.service";
+import { gstPeriodOf } from "../utils/istDate";
 import * as whatsappService from "../services/whatsapp.service";
 import * as emailService from "../services/email.service";
 import * as exportService from "../services/export.service";
@@ -10,7 +13,7 @@ import { normalizeIndianPhone } from "../utils/phone";
 import { env } from "../config/env";
 import { redis } from "../config/redis";
 import type { ExportFormat } from "../services/export.service";
-import { cancelInvoiceSchema, listInvoicesQuerySchema, sendWhatsappSchema } from "../validators/invoice.validators";
+import { cancelInvoiceSchema, creditNoteSchema, listInvoicesQuerySchema, sendWhatsappSchema } from "../validators/invoice.validators";
 
 // Blocks an accidental double-tap from sending the same bill twice.
 const WHATSAPP_RESEND_COOLDOWN_SECONDS = 30;
@@ -42,13 +45,32 @@ export async function updateInvoice(req: Request, res: Response): Promise<void> 
 
 export async function cancelInvoice(req: Request, res: Response): Promise<void> {
   const { reason } = cancelInvoiceSchema.parse(req.body ?? {});
-  const invoice = await invoiceService.cancelInvoice(req.params.invoiceNumber as string, requireUserId(req), reason);
-  res.json({ success: true, data: invoice });
+  // { invoice, creditNote }: creditNote is set when the month was already filed.
+  const result = await invoiceService.cancelInvoice(req.params.invoiceNumber as string, requireUserId(req), reason);
+  res.json({ success: true, data: result });
+}
+
+export async function issueCreditNote(req: Request, res: Response): Promise<void> {
+  const { items, reason } = creditNoteSchema.parse(req.body);
+  const note = await creditNoteService.issueCreditNote({
+    invoiceNumber: req.params.invoiceNumber as string,
+    userId: requireUserId(req),
+    lines: items,
+    reason,
+  });
+  res.status(201).json({ success: true, data: note });
+}
+
+export async function listCreditNotes(req: Request, res: Response): Promise<void> {
+  const notes = await creditNoteService.listCreditNotesForInvoice(req.params.invoiceNumber as string);
+  res.json({ success: true, data: notes });
 }
 
 export async function getInvoice(req: Request, res: Response): Promise<void> {
   const invoice = await invoiceService.getInvoiceByNumber(req.params.invoiceNumber as string);
-  res.json({ success: true, data: invoice });
+  // gstLocked: its month's GSTR-1 is filed — changes must go through a credit note.
+  const gstLocked = await isPeriodFiled(gstPeriodOf(invoice.billingDate));
+  res.json({ success: true, data: { ...invoice.toJSON(), gstLocked } });
 }
 
 export async function getInvoiceBarcode(req: Request, res: Response): Promise<void> {

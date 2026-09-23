@@ -20,7 +20,7 @@ export default function InvoiceLookupPage() {
         <p className="mt-1 text-sm text-muted">Scan the barcode on your receipt, or type the invoice number.</p>
 
         <div className="mt-4 text-left">
-          <ScannerInput onScan={handleScan} placeholder="e.g. RTK-INV-260718-0001" />
+          <ScannerInput onScan={handleScan} placeholder="e.g. RTK-260923-0001" />
         </div>
       </div>
     </div>

@@ -2,6 +2,11 @@ import { Invoice } from "../models/Invoice.model";
 import { Product } from "../models/Product.model";
 
 const TREND_DAYS = 14;
+
+// Revenue counts bills that stood (paid, or later reversed by a credit note)
+// net of any credit notes, so returns after GST filing reduce sales.
+const SALE_STATUSES = { $in: ["paid", "credited"] };
+const NET_REVENUE = { $subtract: ["$grandTotal", { $ifNull: ["$creditedTotal", 0] }] };
 const TOP_PRODUCTS_LIMIT = 6;
 const RECENT_INVOICES_LIMIT = 8;
 
@@ -22,16 +27,16 @@ export async function getDashboardSummary() {
 
   const [todayAgg, lowStockCount, trendRows, topProducts, recentInvoices] = await Promise.all([
     Invoice.aggregate([
-      { $match: { billingDate: { $gte: todayStart }, status: "paid" } },
-      { $group: { _id: null, revenue: { $sum: "$grandTotal" }, invoiceCount: { $sum: 1 } } },
+      { $match: { billingDate: { $gte: todayStart }, status: SALE_STATUSES } },
+      { $group: { _id: null, revenue: { $sum: NET_REVENUE }, invoiceCount: { $sum: 1 } } },
     ]),
     Product.countDocuments({ isActive: true, $expr: { $lte: ["$quantityInStock", "$lowStockThreshold"] } }),
     Invoice.aggregate([
-      { $match: { billingDate: { $gte: trendStart }, status: "paid" } },
+      { $match: { billingDate: { $gte: trendStart }, status: SALE_STATUSES } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$billingDate" } },
-          revenue: { $sum: "$grandTotal" },
+          revenue: { $sum: NET_REVENUE },
         },
       },
     ]),
@@ -92,8 +97,9 @@ export interface DateRange {
   to?: Date;
 }
 
-function billingDateMatch(range: DateRange): Record<string, unknown> {
-  const match: Record<string, unknown> = { status: "paid" };
+// Item-level reports only count bills still standing in full ("paid").
+function billingDateMatch(range: DateRange, status: unknown = SALE_STATUSES): Record<string, unknown> {
+  const match: Record<string, unknown> = { status };
   if (range.from || range.to) {
     const billingDate: Record<string, Date> = {};
     if (range.from) billingDate.$gte = range.from;
@@ -109,7 +115,7 @@ export async function getSalesReport(period: SalesPeriod, range: DateRange) {
     {
       $group: {
         _id: { $dateToString: { format: PERIOD_FORMATS[period], date: "$billingDate" } },
-        revenue: { $sum: "$grandTotal" },
+        revenue: { $sum: NET_REVENUE },
         invoiceCount: { $sum: 1 },
       },
     },
@@ -120,7 +126,7 @@ export async function getSalesReport(period: SalesPeriod, range: DateRange) {
 
 export async function getProductWiseSales(range: DateRange) {
   return Invoice.aggregate([
-    { $match: billingDateMatch(range) },
+    { $match: billingDateMatch(range, "paid") },
     { $unwind: "$items" },
     {
       $group: {
@@ -140,7 +146,7 @@ export async function getUserWiseSales(range: DateRange) {
     {
       $group: {
         _id: "$createdBy",
-        revenue: { $sum: "$grandTotal" },
+        revenue: { $sum: NET_REVENUE },
         invoiceCount: { $sum: 1 },
       },
     },

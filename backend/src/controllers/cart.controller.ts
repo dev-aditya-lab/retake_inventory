@@ -10,22 +10,22 @@ function requireUserId(req: Request): string {
 
 export async function createCart(req: Request, res: Response): Promise<void> {
   const cart = await cartService.createCart(requireUserId(req));
-  res.status(201).json({ success: true, data: cart });
+  res.status(201).json({ success: true, data: await cartService.withPreview(cart) });
 }
 
 export async function listCarts(req: Request, res: Response): Promise<void> {
   const carts = await cartService.listCarts(requireUserId(req));
-  res.json({ success: true, data: carts });
+  res.json({ success: true, data: await Promise.all(carts.map(cartService.withPreview)) });
 }
 
 export async function getCart(req: Request, res: Response): Promise<void> {
   const cart = await cartService.getCart(requireUserId(req), req.params.id as string);
-  res.json({ success: true, data: cart });
+  res.json({ success: true, data: await cartService.withPreview(cart) });
 }
 
 export async function updateCart(req: Request, res: Response): Promise<void> {
   const cart = await cartService.updateCartDetails(requireUserId(req), req.params.id as string, req.body);
-  res.json({ success: true, data: cart });
+  res.json({ success: true, data: await cartService.withPreview(cart) });
 }
 
 export async function discardCart(req: Request, res: Response): Promise<void> {
@@ -35,7 +35,7 @@ export async function discardCart(req: Request, res: Response): Promise<void> {
 
 export async function addItem(req: Request, res: Response): Promise<void> {
   const cart = await cartService.addItem(requireUserId(req), req.params.id as string, req.body);
-  res.json({ success: true, data: cart });
+  res.json({ success: true, data: await cartService.withPreview(cart) });
 }
 
 export async function updateItem(req: Request, res: Response): Promise<void> {
@@ -45,12 +45,12 @@ export async function updateItem(req: Request, res: Response): Promise<void> {
     req.params.productId as string,
     req.body.quantity,
   );
-  res.json({ success: true, data: cart });
+  res.json({ success: true, data: await cartService.withPreview(cart) });
 }
 
 export async function removeItem(req: Request, res: Response): Promise<void> {
   const cart = await cartService.removeItem(requireUserId(req), req.params.id as string, req.params.productId as string);
-  res.json({ success: true, data: cart });
+  res.json({ success: true, data: await cartService.withPreview(cart) });
 }
 
 export async function checkout(req: Request, res: Response): Promise<void> {

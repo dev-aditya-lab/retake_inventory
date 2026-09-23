@@ -7,6 +7,8 @@ const customerSchema = z.object({
   phone: z.string().trim().optional(),
   email: z.string().trim().optional(),
   gstin: z.string().trim().optional(),
+  // Place of supply (GST state code). Blank = from the GSTIN, or the shop's own state.
+  stateCode: z.string().trim().max(2).optional(),
 });
 
 const gstSchema = z.object({

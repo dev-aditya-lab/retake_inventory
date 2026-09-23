@@ -1,23 +1,20 @@
 import { Schema, model, Types, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { gstDocumentFields, gstLineSchema } from "./gstSchemas";
 
-export const INVOICE_STATUSES = ["paid", "void"] as const;
+// paid     — a normal sale.
+// void     — cancelled before its month's GSTR-1 was filed: stock returned,
+//            reported only as "cancelled" in GSTR-1 Table 13.
+// credited — fully reversed by a credit note after its month was filed.
+// Invoices are never hard-deleted — the number sequence and audit trail stay intact.
+export const INVOICE_STATUSES = ["paid", "void", "credited"] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
-const invoiceItemSchema = new Schema(
-  {
-    product: { type: Types.ObjectId, ref: "Product", required: true },
-    name: { type: String, required: true },
-    hsnCode: { type: String, default: "" },
-    quantity: { type: Number, required: true, min: 1 },
-    unitPrice: { type: Number, required: true, min: 0 },
-    total: { type: Number, required: true, min: 0 },
-  },
-  { _id: false },
-);
+/** Invoices created with per-line GST (tax invoice under CGST Rule 46). */
+export const GST_VERSION = 2;
 
 const invoiceSchema = new Schema(
   {
-    invoiceNumber: { type: String, required: true, unique: true, index: true }, // RTK-INV-YYMMDD-XXXX
+    invoiceNumber: { type: String, required: true, unique: true, index: true }, // RTK-YYMMDD-NNNN
     billingDate: { type: Date, required: true, default: Date.now },
 
     customer: {
@@ -31,8 +28,14 @@ const invoiceSchema = new Schema(
     // Link to the customer directory entry (set when the bill has a phone number).
     customerRef: { type: Types.ObjectId, ref: "Customer" },
 
-    items: { type: [invoiceItemSchema], required: true, validate: (v: unknown[]) => v.length > 0 },
+    items: { type: [gstLineSchema], required: true, validate: (v: unknown[]) => v.length > 0 },
 
+    // Absent on legacy invoices (single bill-level GST %, below); 2 = per-line GST.
+    gstVersion: { type: Number },
+    ...gstDocumentFields,
+
+    // Legacy bill-level GST summary. Still filled for GST-v2 invoices so older
+    // readers (exports, WhatsApp/email, reports) keep working.
     gst: {
       enabled: { type: Boolean, default: false },
       type: { type: String, enum: ["CGST_SGST", "IGST"] },
@@ -47,10 +50,10 @@ const invoiceSchema = new Schema(
     subtotal: { type: Number, required: true, min: 0 },
     grandTotal: { type: Number, required: true, min: 0 },
     amountInWords: { type: String, required: true },
+    // Sum of credit notes issued against this invoice (returns after filing).
+    creditedTotal: { type: Number, default: 0, min: 0 },
 
     paymentMethod: { type: String, enum: ["cash", "cheque", "upi", "bank_transfer"], required: true },
-    // "void" = cancelled by an admin: stock returned, excluded from reports.
-    // Invoices are never hard-deleted — the number sequence and audit trail stay intact.
     status: { type: String, enum: INVOICE_STATUSES, default: "paid" },
     note: { type: String, default: "" },
 

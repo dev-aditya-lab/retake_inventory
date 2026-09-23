@@ -10,6 +10,8 @@ interface CancellableInvoice {
   invoiceNumber: string;
   grandTotal: number;
   customer: { name: string };
+  /** Its month's GSTR-1 is filed — deleting issues a credit note instead of cancelling. */
+  gstLocked?: boolean;
 }
 
 /** Admin "delete" of a bill: cancels it and puts its items back into stock. */
@@ -49,7 +51,7 @@ export function CancelInvoiceDialog({
     <ConfirmDialog
       open={!!invoice}
       title="Delete this bill?"
-      confirmLabel="Delete bill"
+      confirmLabel={invoice?.gstLocked ? "Issue credit note" : "Delete bill"}
       pendingLabel="Deleting…"
       isLoading={isLoading}
       error={error}
@@ -62,11 +64,19 @@ export function CancelInvoiceDialog({
               <span className="font-medium">{invoice.invoiceNumber}</span> · {invoice.customer.name} ·{" "}
               {formatCurrency(invoice.grandTotal)}
             </p>
-            <ul className="list-disc space-y-1 pl-5 text-muted">
-              <li>All its items go back into stock.</li>
-              <li>It is removed from sales totals and reports.</li>
-              <li>The bill is kept on record marked &ldquo;Cancelled&rdquo;, and the customer&apos;s link shows it as cancelled.</li>
-            </ul>
+            {invoice.gstLocked ? (
+              <ul className="list-disc space-y-1 pl-5 text-muted">
+                <li>Its month&apos;s GSTR-1 is already filed, so a <strong>credit note</strong> is issued for the full amount.</li>
+                <li>The credit note goes into this month&apos;s GSTR-1 and reduces your GST.</li>
+                <li>All its items go back into stock, and it drops out of sales totals.</li>
+              </ul>
+            ) : (
+              <ul className="list-disc space-y-1 pl-5 text-muted">
+                <li>All its items go back into stock.</li>
+                <li>It is removed from sales totals and reports.</li>
+                <li>The bill is kept on record marked &ldquo;Cancelled&rdquo; (GSTR-1 lists it as a cancelled document).</li>
+              </ul>
+            )}
           </div>
         )
       }

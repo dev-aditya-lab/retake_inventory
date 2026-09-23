@@ -17,7 +17,15 @@ const productSchema = new Schema(
     hsnCode: { type: String, default: "" },
     image: { type: String, default: "https://placehold.co/400x400.png?text=Retake" },
     costPrice: { type: Number, default: 0, min: 0 },
+    // B2B price, EXCLUDING GST — GST is added on top for buyers with a GSTIN.
     sellingPrice: { type: Number, default: 0, min: 0 },
+    // Retail MRP, INCLUDING GST (as the law requires of an MRP) — charged to
+    // buyers without a GSTIN; the GST inside it is worked out on the bill.
+    mrp: { type: Number, min: 0 },
+    // GST rate in % (spices and masalas: 5). Must be a rate the portal accepts.
+    gstRate: { type: Number, min: 0, max: 100 },
+    // Unit Quantity Code for GST returns, e.g. PAC (packs).
+    uqc: { type: String, default: "PAC", uppercase: true, trim: true },
     quantityInStock: { type: Number, default: 0, min: 0 },
     lowStockThreshold: { type: Number, default: 10, min: 0 },
     note: { type: String, default: "" },

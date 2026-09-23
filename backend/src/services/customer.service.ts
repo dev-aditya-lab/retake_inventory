@@ -53,12 +53,13 @@ export async function listCustomers({ search, page, limit }: CustomerListFilters
     totalSpent: number;
     lastPurchaseAt: Date;
   }>([
-    { $match: { customerRef: { $in: customers.map((c) => c._id) }, status: "paid" } },
+    // Bills that stood (incl. ones later returned via credit note), net of returns.
+    { $match: { customerRef: { $in: customers.map((c) => c._id) }, status: { $in: ["paid", "credited"] } } },
     {
       $group: {
         _id: "$customerRef",
         invoiceCount: { $sum: 1 },
-        totalSpent: { $sum: "$grandTotal" },
+        totalSpent: { $sum: { $subtract: ["$grandTotal", { $ifNull: ["$creditedTotal", 0] }] } },
         lastPurchaseAt: { $max: "$billingDate" },
       },
     },
@@ -170,12 +171,12 @@ export async function upsertCustomerFromSale(details: CustomerDetails, purchased
   };
 
   try {
-    const customer = await Customer.findOneAndUpdate({ phoneKey: key }, update, { upsert: true, new: true });
+    const customer = await Customer.findOneAndUpdate({ phoneKey: key }, update, { upsert: true, returnDocument: "after" });
     return customer?._id;
   } catch (err) {
     // Two checkouts for the same new number raced to insert — the other won, so update theirs.
     if (!isDuplicateKeyError(err)) throw err;
-    const customer = await Customer.findOneAndUpdate({ phoneKey: key }, update, { new: true });
+    const customer = await Customer.findOneAndUpdate({ phoneKey: key }, update, { returnDocument: "after" });
     return customer?._id;
   }
 }

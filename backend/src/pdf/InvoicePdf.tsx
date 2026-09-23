@@ -1,5 +1,6 @@
 import path from "node:path";
 import { readFileSync } from "node:fs";
+import { createCanvas, Image as CanvasImage } from "canvas";
 import { Document, Page, View, Text, Image, StyleSheet, Svg, Rect } from "@react-pdf/renderer";
 import { company } from "../config/company";
 import { toBarRuns } from "../utils/barcode";
@@ -126,7 +127,20 @@ const styles = StyleSheet.create({
 // misreads a Windows absolute path's drive letter ("C:\...") as a URL scheme
 // and tries to fetch it remotely instead of reading it from disk — silently
 // dropping the logo. A Buffer skips that resolution path entirely.
-const logoBuffer = readFileSync(path.resolve(__dirname, "../assets/logo.png"));
+//
+// The source logo is 5000×5000 px (~2.4 MB) but prints at ~1.5 cm, so it's
+// downscaled once to 256 px here — otherwise every invoice PDF carried the
+// full image and weighed ~1.9 MB, heavy for WhatsApp and email.
+const LOGO_PDF_SIZE = 256;
+function loadPdfLogo(): Buffer {
+  const original = readFileSync(path.resolve(__dirname, "../assets/logo.png"));
+  const image = new CanvasImage();
+  image.src = original;
+  const canvas = createCanvas(LOGO_PDF_SIZE, LOGO_PDF_SIZE);
+  canvas.getContext("2d").drawImage(image, 0, 0, LOGO_PDF_SIZE, LOGO_PDF_SIZE);
+  return canvas.toBuffer("image/png");
+}
+export const logoBuffer = loadPdfLogo();
 
 // Footer barcode geometry, in PDF points. 1pt per module (~0.35 mm) prints
 // comfortably above CODE128's minimum bar width for handheld scanners, and
@@ -139,7 +153,7 @@ const BARCODE_HEIGHT_PT = 34;
  * Invoice-number barcode drawn as vector rectangles (not an embedded image),
  * so the bars stay sharp and correctly proportioned at any zoom or print size.
  */
-function InvoiceBarcode({ modules, value }: { modules: string; value: string }) {
+export function InvoiceBarcode({ modules, value }: { modules: string; value: string }) {
   const totalModules = modules.length + BARCODE_QUIET_ZONE_MODULES * 2;
   return (
     <View style={styles.barcodeBlock}>

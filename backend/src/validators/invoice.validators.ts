@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { dateRangeQuerySchema } from "./report.validators";
 import { objectIdSchema, optionalEmailSchema, optionalGstinSchema, paginationQuerySchema } from "./common.validators";
+import { stateCodeSchema } from "./gst.validators";
 
 export const listInvoicesQuerySchema = paginationQuerySchema.extend(dateRangeQuerySchema.shape).extend({
   search: z.string().trim().max(100).optional(),
-  status: z.enum(["paid", "void"]).optional(),
+  status: z.enum(["paid", "void", "credited"]).optional(),
   customer: objectIdSchema.optional(),
 });
 
@@ -16,7 +17,9 @@ export const updateInvoiceSchema = z.object({
     phone: z.string().trim().max(20).optional(),
     email: optionalEmailSchema.optional(),
     gstin: optionalGstinSchema.optional(),
+    stateCode: stateCodeSchema.optional(),
   }),
+  // unitPrice: excluding GST for a buyer with a GSTIN, the MRP otherwise.
   items: z
     .array(
       z.object({
@@ -27,17 +30,20 @@ export const updateInvoiceSchema = z.object({
     )
     .min(1, "An invoice needs at least one item")
     .max(200),
-  gst: z.object({
-    enabled: z.boolean(),
-    type: z.enum(["CGST_SGST", "IGST"]).optional(),
-    percentage: z.number().min(0).max(100),
-  }),
   otherCharges: z.number().min(0),
   paymentMethod: z.enum(["cash", "cheque", "upi", "bank_transfer"]),
   note: z.string().trim().max(500).optional(),
 });
 
 export const cancelInvoiceSchema = z.object({
+  reason: z.string().trim().max(200).optional(),
+});
+
+export const creditNoteSchema = z.object({
+  items: z
+    .array(z.object({ product: objectIdSchema, quantity: z.number().int().min(1) }))
+    .min(1, "Choose at least one item to return")
+    .max(200),
   reason: z.string().trim().max(200).optional(),
 });
 

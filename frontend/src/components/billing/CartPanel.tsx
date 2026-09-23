@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2, Minus, Plus } from "lucide-react";
+import { AlertTriangle, Minus, Plus, Trash2 } from "lucide-react";
 import { ScannerInput } from "@/components/scanner/ScannerInput";
+import { PlaceOfSupplySelect } from "@/components/gst/PlaceOfSupplySelect";
+import { BuyerBadge } from "@/components/gst/BuyerBadge";
 import {
   useAddCartItemMutation,
   useUpdateCartItemMutation,
@@ -11,10 +13,19 @@ import {
   useCheckoutMutation,
 } from "@/lib/redux/features/carts/cartsApi";
 import { useLazyLookupCustomerQuery } from "@/lib/redux/features/customers/customersApi";
-import type { CartData, GstType, PaymentMethod } from "@/types/cart";
+import { getApiErrorMessage } from "@/lib/apiError";
+import { formatCurrency } from "@/lib/format";
+import { gstinStateCode, looksLikeGstin } from "@/lib/gstCalc";
+import { B2C_FULL_DETAILS_THRESHOLD, SUPPLIER_STATE_CODE } from "@/config/gst";
+import type { CartData, PaymentMethod } from "@/types/cart";
 import { PAYMENT_METHODS } from "@/types/cart";
 import type { Invoice } from "@/types/invoice";
 
+/**
+ * One billing tab. Every price, tax and total shown comes from the server's
+ * preview of the cart (`cart.preview`) — the same GST rules checkout applies —
+ * so what the cashier sees is exactly what the tax invoice will say.
+ */
 export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut: (invoice: Invoice) => void }) {
   const [addItem] = useAddCartItemMutation();
   const [updateItem] = useUpdateCartItemMutation();
@@ -24,14 +35,17 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
   const [scanError, setScanError] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  const preview = cart.preview;
+  const lineById = new Map(preview?.lines.map((line) => [line.productId, line]) ?? []);
+  const isIntra = (preview?.supplyType ?? "intra") === "intra";
+  const problems = preview?.problems ?? [];
+
   async function handleScan(code: string) {
     setScanError(null);
     try {
       await addItem({ id: cart.id, ean13: code, quantity: 1 }).unwrap();
     } catch (err) {
-      const message =
-        err && typeof err === "object" && "data" in err ? (err.data as { message?: string })?.message : undefined;
-      setScanError(message ?? `Could not find a product for "${code}"`);
+      setScanError(getApiErrorMessage(err, `Could not find a product for "${code}"`));
     }
   }
 
@@ -41,15 +55,9 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
       const invoice = await checkout(cart.id).unwrap();
       onCheckedOut(invoice);
     } catch (err) {
-      const message =
-        err && typeof err === "object" && "data" in err ? (err.data as { message?: string })?.message : undefined;
-      setCheckoutError(message ?? "Could not complete the sale — please try again.");
+      setCheckoutError(getApiErrorMessage(err, "Could not complete the sale — please try again."));
     }
   }
-
-  const subtotal = cart.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const gstAmount = cart.gst.enabled ? subtotal * (cart.gst.percentage / 100) : 0;
-  const grandTotal = subtotal + gstAmount + (cart.otherCharges || 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -63,87 +71,127 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
           <p className="p-4 text-sm text-muted">No items yet — scan a product to add it.</p>
         ) : (
           <ul className="divide-y divide-border">
-            {cart.items.map((item) => (
-              <li key={item.productId} className="flex items-center gap-3 p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
-                  <p className="text-xs text-muted">
-                    {item.sku} · ₹{item.unitPrice.toFixed(2)} each
+            {cart.items.map((item) => {
+              const priced = lineById.get(item.productId);
+              return (
+                <li key={item.productId} className="flex items-center gap-3 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
+                    <p className="text-xs text-muted">
+                      {item.sku}
+                      {priced &&
+                        (preview?.priceMode === "inclusive"
+                          ? ` · MRP ${formatCurrency(priced.unitPrice)}`
+                          : ` · ${formatCurrency(priced.unitPrice)} + ${priced.gstRate}% GST`)}
+                      {!priced && preview && " · can't be billed yet"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => updateItem({ id: cart.id, productId: item.productId, quantity: item.quantity - 1 })}
+                      className="rounded-md border border-border p-1.5 text-foreground hover:bg-ink-100"
+                      aria-label="Decrease quantity"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => updateItem({ id: cart.id, productId: item.productId, quantity: item.quantity + 1 })}
+                      className="rounded-md border border-border p-1.5 text-foreground hover:bg-ink-100"
+                      aria-label="Increase quantity"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  <p className="w-20 shrink-0 text-right text-sm font-medium text-foreground">
+                    {priced ? formatCurrency(priced.total) : "—"}
                   </p>
-                </div>
-                <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => updateItem({ id: cart.id, productId: item.productId, quantity: item.quantity - 1 })}
-                    className="rounded-md border border-border p-1.5 text-foreground hover:bg-ink-100"
-                    aria-label="Decrease quantity"
+                    onClick={() => removeItem({ id: cart.id, productId: item.productId })}
+                    className="shrink-0 text-danger hover:opacity-70"
+                    aria-label="Remove item"
                   >
-                    <Minus size={14} />
+                    <Trash2 size={16} />
                   </button>
-                  <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
-                  <button
-                    type="button"
-                    onClick={() => updateItem({ id: cart.id, productId: item.productId, quantity: item.quantity + 1 })}
-                    className="rounded-md border border-border p-1.5 text-foreground hover:bg-ink-100"
-                    aria-label="Increase quantity"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-                <p className="w-20 shrink-0 text-right text-sm font-medium text-foreground">
-                  ₹{(item.quantity * item.unitPrice).toFixed(2)}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => removeItem({ id: cart.id, productId: item.productId })}
-                  className="shrink-0 text-danger hover:opacity-70"
-                  aria-label="Remove item"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
 
-      <CustomerFields cart={cart} onSave={(customer) => updateCart({ id: cart.id, customer })} />
-      <GstAndPaymentFields cart={cart} onSave={(updates) => updateCart({ id: cart.id, ...updates })} />
+      <CustomerFields
+        key={cart.id}
+        cart={cart}
+        grandTotal={preview?.grandTotal ?? 0}
+        onSave={(customer) => updateCart({ id: cart.id, customer })}
+      />
+      <PaymentFields cart={cart} onSave={(updates) => updateCart({ id: cart.id, ...updates })} />
 
-      <div className="rounded-lg border border-border bg-surface p-4">
-        <dl className="space-y-1 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-muted">Subtotal</dt>
-            <dd className="text-foreground">₹{subtotal.toFixed(2)}</dd>
+      {preview && (
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <BuyerBadge priceMode={preview.priceMode} />
+            <span className="text-xs text-muted">
+              {preview.placeOfSupply.name} · {isIntra ? "CGST + SGST" : "IGST"}
+            </span>
           </div>
-          {cart.gst.enabled && (
+          <dl className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <dt className="text-muted">GST ({cart.gst.percentage}%)</dt>
-              <dd className="text-foreground">₹{gstAmount.toFixed(2)}</dd>
+              <dt className="text-muted">Taxable value</dt>
+              <dd className="text-foreground">{formatCurrency(preview.taxableValue)}</dd>
             </div>
-          )}
-          {cart.otherCharges > 0 && (
-            <div className="flex justify-between">
-              <dt className="text-muted">Other charges</dt>
-              <dd className="text-foreground">₹{cart.otherCharges.toFixed(2)}</dd>
+            {isIntra ? (
+              <>
+                <div className="flex justify-between">
+                  <dt className="text-muted">CGST</dt>
+                  <dd className="text-foreground">{formatCurrency(preview.cgst)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted">SGST</dt>
+                  <dd className="text-foreground">{formatCurrency(preview.sgst)}</dd>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between">
+                <dt className="text-muted">IGST</dt>
+                <dd className="text-foreground">{formatCurrency(preview.igst)}</dd>
+              </div>
+            )}
+            {preview.otherCharges && (
+              <p className="text-xs text-muted">Includes other charges of {formatCurrency(preview.otherCharges.total)} (taxed at {preview.otherCharges.gstRate}%).</p>
+            )}
+            <div className="flex justify-between border-t border-border pt-1 text-base font-semibold">
+              <dt className="text-foreground">Grand total</dt>
+              <dd className="text-foreground">{formatCurrency(preview.grandTotal)}</dd>
             </div>
-          )}
-          <div className="flex justify-between border-t border-border pt-1 text-base font-semibold">
-            <dt className="text-foreground">Grand total</dt>
-            <dd className="text-foreground">₹{grandTotal.toFixed(2)}</dd>
-          </div>
-        </dl>
-      </div>
+          </dl>
+        </div>
+      )}
+
+      {problems.length > 0 && (
+        <div role="alert" className="flex flex-col gap-1 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-foreground">
+          {problems.map((problem) => (
+            <p key={problem} className="flex items-start gap-2">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning" aria-hidden />
+              {problem}
+            </p>
+          ))}
+        </div>
+      )}
 
       {checkoutError && <p className="text-sm text-danger">{checkoutError}</p>}
 
       <button
         type="button"
         onClick={handleCheckout}
-        disabled={isCheckingOut || cart.items.length === 0}
+        disabled={isCheckingOut || cart.items.length === 0 || problems.length > 0}
         className="rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
       >
-        {isCheckingOut ? "Generating invoice…" : "Generate invoice"}
+        {isCheckingOut ? "Generating invoice…" : "Generate tax invoice"}
       </button>
     </div>
   );
@@ -151,26 +199,38 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
 
 function CustomerFields({
   cart,
+  grandTotal,
   onSave,
 }: {
   cart: CartData;
+  grandTotal: number;
   onSave: (customer: CartData["customer"]) => void;
 }) {
   const [name, setName] = useState(cart.customer.name ?? "");
   const [phone, setPhone] = useState(cart.customer.phone ?? "");
   const [company, setCompany] = useState(cart.customer.company ?? "");
   const [gstin, setGstin] = useState(cart.customer.gstin ?? "");
+  const [address, setAddress] = useState(cart.customer.address ?? "");
   const [lookupCustomer] = useLazyLookupCustomerQuery();
   const [returningCustomer, setReturningCustomer] = useState<string | null>(null);
 
+  const stateCode = cart.customer.stateCode ?? "";
+  const autoState = looksLikeGstin(gstin) ? gstinStateCode(gstin) : SUPPLIER_STATE_CODE;
+  const outOfStateRetail = !gstin.trim() && (stateCode || autoState) !== SUPPLIER_STATE_CODE;
+  const needsFullDetails = !gstin.trim() && grandTotal >= B2C_FULL_DETAILS_THRESHOLD;
+
+  function current() {
+    return { ...cart.customer, name, phone, company, gstin: gstin.trim().toUpperCase(), address };
+  }
+
   function save() {
-    onSave({ ...cart.customer, name, phone, company, gstin });
+    onSave(current());
   }
 
   // Returning customer: fill in whatever the cashier left blank from the
   // customer directory. Never overwrites anything already typed.
   async function handlePhoneBlur() {
-    let details = { ...cart.customer, name, phone, company, gstin };
+    let details = current();
     if (phone.replace(/\D/g, "").length >= 10) {
       try {
         const found = await lookupCustomer(phone.trim(), true).unwrap();
@@ -182,11 +242,12 @@ function CustomerFields({
             company: company || found.company,
             gstin: gstin || found.gstin,
             email: details.email || found.email,
-            address: details.address || found.address,
+            address: address || found.address,
           };
-          setName((current) => current || found.name);
-          setCompany((current) => current || found.company);
-          setGstin((current) => current || found.gstin);
+          setName((v) => v || found.name);
+          setCompany((v) => v || found.company);
+          setGstin((v) => v || found.gstin);
+          setAddress((v) => v || found.address);
         }
       } catch {
         // Lookup is a convenience — billing carries on without it.
@@ -197,9 +258,9 @@ function CustomerFields({
 
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
-      <p className="mb-2 text-sm font-medium text-foreground">Customer (optional)</p>
+      <p className="mb-2 text-sm font-medium text-foreground">Customer</p>
       <div className="grid grid-cols-2 gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} placeholder="Name" className="input" />
+        <input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} placeholder="Name *" className="input" />
         <input
           type="tel"
           inputMode="tel"
@@ -209,65 +270,60 @@ function CustomerFields({
           placeholder="Phone"
           className="input"
         />
+        <input
+          value={gstin}
+          maxLength={15}
+          onChange={(e) => setGstin(e.target.value.toUpperCase())}
+          onBlur={save}
+          placeholder="GSTIN (B2B)"
+          aria-label="Customer GSTIN — makes this a B2B bill"
+          className="input uppercase"
+        />
         <input value={company} onChange={(e) => setCompany(e.target.value)} onBlur={save} placeholder="Company" className="input" />
-        <input value={gstin} onChange={(e) => setGstin(e.target.value)} onBlur={save} placeholder="GSTIN" className="input" />
+        <input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          onBlur={save}
+          placeholder={outOfStateRetail || needsFullDetails ? "Address *" : "Address"}
+          className="input col-span-2"
+        />
+        <label className="col-span-2 flex flex-col gap-1 text-xs font-medium text-muted">
+          Place of supply
+          <PlaceOfSupplySelect
+            value={stateCode}
+            autoCode={autoState}
+            onChange={(code) => onSave({ ...current(), stateCode: code || undefined })}
+          />
+        </label>
       </div>
       {returningCustomer && (
         <p className="mt-2 text-xs text-success">Returning customer ({returningCustomer}) — saved details filled in.</p>
+      )}
+      {(outOfStateRetail || needsFullDetails) && !address.trim() && (
+        <p className="mt-2 text-xs text-warning">
+          {outOfStateRetail
+            ? "An out-of-state buyer without a GSTIN needs their address on the bill."
+            : `Retail bills of ${formatCurrency(B2C_FULL_DETAILS_THRESHOLD)} or more need the buyer's name and address.`}
+        </p>
       )}
     </div>
   );
 }
 
-function GstAndPaymentFields({
+function PaymentFields({
   cart,
   onSave,
 }: {
   cart: CartData;
-  onSave: (updates: { gst?: CartData["gst"]; otherCharges?: number; paymentMethod?: PaymentMethod }) => void;
+  onSave: (updates: { otherCharges?: number; paymentMethod?: PaymentMethod }) => void;
 }) {
-  const [percentage, setPercentage] = useState(String(cart.gst.percentage || 5));
   const [otherCharges, setOtherCharges] = useState(String(cart.otherCharges || ""));
+  const inclusive = (cart.preview?.priceMode ?? "inclusive") === "inclusive";
 
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
-      <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <input
-          type="checkbox"
-          checked={cart.gst.enabled}
-          onChange={(e) =>
-            onSave({ gst: { enabled: e.target.checked, type: cart.gst.type ?? "CGST_SGST", percentage: Number(percentage) } })
-          }
-        />
-        Apply GST
-      </label>
-
-      {cart.gst.enabled && (
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <select
-            value={cart.gst.type ?? "CGST_SGST"}
-            onChange={(e) => onSave({ gst: { ...cart.gst, type: e.target.value as GstType } })}
-            className="input"
-          >
-            <option value="CGST_SGST">CGST + SGST (same state)</option>
-            <option value="IGST">IGST (other state)</option>
-          </select>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            value={percentage}
-            onChange={(e) => setPercentage(e.target.value)}
-            onBlur={() => onSave({ gst: { ...cart.gst, percentage: Number(percentage) || 0 } })}
-            placeholder="GST %"
-            className="input"
-          />
-        </div>
-      )}
-
-      <label className="mt-3 flex flex-col gap-1.5 text-sm font-medium text-foreground">
-        Other charges (₹)
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+        Other charges — packing/delivery ({inclusive ? "incl." : "excl."} GST, ₹)
         <input
           type="number"
           min="0"
