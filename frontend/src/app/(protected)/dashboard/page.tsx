@@ -67,7 +67,12 @@ export default function DashboardPage() {
             </div>
 
             <div className="rounded-lg border border-border bg-surface p-4">
-              <h2 className="text-sm font-medium text-foreground">Recent invoices</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-medium text-foreground">Recent invoices</h2>
+                <Link href="/sales" className="text-xs font-medium text-primary hover:underline">
+                  View all
+                </Link>
+              </div>
               {summary.recentInvoices.length === 0 ? (
                 <p className="mt-3 text-sm text-muted">No invoices yet.</p>
               ) : (

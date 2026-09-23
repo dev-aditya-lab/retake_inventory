@@ -17,7 +17,7 @@ export function InvoiceSuccess({ invoice, onNewSale }: { invoice: Invoice; onNew
   async function handleSendWhatsapp() {
     setWhatsappStatus("idle");
     try {
-      await sendWhatsapp(invoice.invoiceNumber).unwrap();
+      await sendWhatsapp({ invoiceNumber: invoice.invoiceNumber }).unwrap();
       setWhatsappStatus("sent");
     } catch {
       setWhatsappStatus("error");

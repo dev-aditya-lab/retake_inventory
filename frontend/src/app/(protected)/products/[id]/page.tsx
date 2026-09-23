@@ -1,11 +1,14 @@
 "use client";
 
-import { use, useEffect, useState, type FormEvent } from "react";
+import { use, useEffect, useState } from "react";
 import Image from "next/image";
 import { WifiOff } from "lucide-react";
-import { useGetProductQuery, useUpdateProductMutation, useAdjustStockMutation } from "@/lib/redux/features/products/productsApi";
+import { useGetProductQuery, useAdjustStockMutation } from "@/lib/redux/features/products/productsApi";
+import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 import { BarcodePanel } from "@/components/scanner/BarcodePanel";
 import { ExternalBarcodeBadge } from "@/components/ExternalBarcodeBadge";
+import { ProductEditForm } from "@/components/products/ProductEditForm";
+import { DeleteProductSection } from "@/components/products/DeleteProductSection";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { getOfflineProduct } from "@/lib/offlineDb";
 import type { Product } from "@/types/product";
@@ -13,6 +16,8 @@ import type { Product } from "@/types/product";
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const isOnline = useOnlineStatus();
+  const { data: currentUser } = useGetMeQuery();
+  const isAdmin = currentUser?.role === "admin";
   const { data: onlineProduct, isLoading: isLoadingOnline } = useGetProductQuery(id, { skip: !isOnline });
 
   const [offlineProduct, setOfflineProduct] = useState<Product | null | undefined>(undefined);
@@ -51,18 +56,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       ) : (
         <>
           <StockCard productId={product._id} quantityInStock={product.quantityInStock} lowStockThreshold={product.lowStockThreshold} />
-          <BarcodePanel key={`barcode-${product._id}`} productId={product._id} sku={product.sku} ean13={product.ean13} />
-          <EditForm
-            key={`edit-${product._id}`}
-            productId={product._id}
-            category={product.category}
-            hsnCode={product.hsnCode}
-            costPrice={product.costPrice}
-            sellingPrice={product.sellingPrice}
-            lowStockThreshold={product.lowStockThreshold}
-            note={product.note}
-            isActive={product.isActive}
-          />
+          <BarcodePanel key={`barcode-${product._id}-${product.ean13}`} productId={product._id} sku={product.sku} ean13={product.ean13} />
+          <ProductEditForm key={`edit-${product._id}`} product={product} isAdmin={isAdmin} />
+          {isAdmin && <DeleteProductSection product={product} />}
         </>
       )}
     </div>
@@ -124,106 +120,5 @@ function StockCard({
         </button>
       </div>
     </div>
-  );
-}
-
-function EditForm({
-  productId,
-  category,
-  hsnCode,
-  costPrice,
-  sellingPrice,
-  lowStockThreshold,
-  note,
-  isActive,
-}: {
-  productId: string;
-  category: string;
-  hsnCode: string;
-  costPrice: number;
-  sellingPrice: number;
-  lowStockThreshold: number;
-  note: string;
-  isActive: boolean;
-}) {
-  const [updateProduct, { isLoading }] = useUpdateProductMutation();
-  const [form, setForm] = useState({
-    category,
-    hsnCode,
-    costPrice: String(costPrice),
-    sellingPrice: String(sellingPrice),
-    lowStockThreshold: String(lowStockThreshold),
-    note,
-    isActive,
-  });
-  const [saved, setSaved] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSaved(false);
-    await updateProduct({
-      id: productId,
-      category: form.category,
-      hsnCode: form.hsnCode,
-      costPrice: Number(form.costPrice),
-      sellingPrice: Number(form.sellingPrice),
-      lowStockThreshold: Number(form.lowStockThreshold),
-      note: form.note,
-      isActive: form.isActive,
-    }).unwrap();
-    setSaved(true);
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-lg border border-border bg-background p-4">
-      <h2 className="text-sm font-medium text-foreground">Details</h2>
-
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          Category
-          <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input" />
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          HSN/SAC code
-          <input value={form.hsnCode} onChange={(e) => setForm({ ...form, hsnCode: e.target.value })} className="input" />
-        </label>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          Cost price
-          <input type="number" min="0" step="0.01" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} className="input" />
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          Selling price
-          <input type="number" min="0" step="0.01" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} className="input" />
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-          Low stock at
-          <input type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} className="input" />
-        </label>
-      </div>
-
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-        Note
-        <textarea rows={2} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} className="input" />
-      </label>
-
-      <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
-        Active (visible for billing/scanning)
-      </label>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {isLoading ? "Saving…" : "Save changes"}
-        </button>
-        {saved && <span className="text-sm text-success">Saved</span>}
-      </div>
-    </form>
   );
 }

@@ -17,18 +17,24 @@ export interface InvoiceGst {
   igstAmount?: number;
 }
 
+/** "void" = cancelled by an admin (stock returned, excluded from reports). */
+export type InvoiceStatus = "paid" | "void";
+
+export interface InvoiceCustomer {
+  name: string;
+  company?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  gstin?: string;
+}
+
 export interface Invoice {
   _id: string;
   invoiceNumber: string;
   billingDate: string;
-  customer: {
-    name: string;
-    company?: string;
-    address?: string;
-    phone?: string;
-    email?: string;
-    gstin?: string;
-  };
+  customer: InvoiceCustomer;
+  customerRef?: string;
   items: InvoiceItem[];
   gst: InvoiceGst;
   otherCharges: number;
@@ -36,9 +42,31 @@ export interface Invoice {
   grandTotal: number;
   amountInWords: string;
   paymentMethod: string;
-  status: string;
+  status: InvoiceStatus;
   note?: string;
   createdBy: string;
+  whatsappSentAt?: string;
+  editedAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A row on the Sales page — the list endpoint returns a slimmed-down invoice. */
+export interface InvoiceListItem {
+  _id: string;
+  invoiceNumber: string;
+  billingDate: string;
+  customer: InvoiceCustomer;
+  customerRef?: string;
+  /** Total units across all lines. */
+  itemCount: number;
+  grandTotal: number;
+  paymentMethod: string;
+  status: InvoiceStatus;
+  whatsappSentAt?: string;
+  editedAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
 }

@@ -3,10 +3,12 @@ import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { connectDatabase, disconnectDatabase } from "./config/database";
 import { connectRedis, disconnectRedis } from "./config/redis";
+import { runMigrations } from "./migrations";
 
 async function main() {
   await connectDatabase();
   await connectRedis();
+  await runMigrations();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

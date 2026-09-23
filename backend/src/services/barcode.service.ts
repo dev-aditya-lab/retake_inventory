@@ -39,13 +39,29 @@ export function generateBarcodeSvg(ean13: string): string {
   return new XMLSerializer().serializeToString(svgNode);
 }
 
-/** Renders an invoice number as a CODE128 barcode PNG for the invoice footer (not an EAN-13 product code, so a different symbology). */
+/**
+ * CODE128 module pattern ("1" = bar, "0" = space) for an invoice number. The
+ * PDF draws this as vector bars (see pdf/InvoicePdf.tsx) rather than
+ * embedding a PNG: a raster image gets scaled into the PDF's box, which
+ * blurred and distorted the bars until they couldn't be read or scanned.
+ */
+export function encodeInvoiceBarcode(invoiceNumber: string): string {
+  const encoded: { encodings?: { data: string }[] } = {};
+  JsBarcode(encoded, invoiceNumber, { format: "CODE128" });
+  const modules = encoded.encodings?.map((e) => e.data).join("") ?? "";
+  if (!modules) throw ApiError.badRequest(`"${invoiceNumber}" can't be encoded as a barcode`);
+  return modules;
+}
+
+/** Renders an invoice number as a CODE128 barcode PNG (not an EAN-13 product code, so a different symbology). */
 export function generateInvoiceBarcodePng(invoiceNumber: string): Buffer {
   const canvas = createCanvas(320, 100);
   JsBarcode(canvas, invoiceNumber, {
     format: "CODE128",
-    lineColor: "#1a1817",
-    width: 1.5,
+    lineColor: "#000000",
+    // Whole pixels per module: a fractional width (was 1.5) anti-aliases
+    // every bar edge into grey, which scanners struggle with.
+    width: 2,
     height: 60,
     displayValue: true,
     fontSize: 12,

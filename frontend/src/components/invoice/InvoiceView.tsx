@@ -18,6 +18,15 @@ const PAYMENT_METHODS: { value: string; label: string }[] = [
 export function InvoiceView({ invoice }: { invoice: Invoice }) {
   return (
     <div id="invoice-print-area" className="mx-auto max-w-2xl bg-white p-6 text-ink-900 print:max-w-none print:p-0">
+      {invoice.status === "void" && (
+        <div className="mb-4 rounded-md border-2 border-chilli-700 p-3 text-center text-chilli-700">
+          <p className="text-lg font-bold tracking-wide">CANCELLED</p>
+          <p className="text-xs">
+            This invoice is no longer valid
+            {invoice.cancelledAt ? ` (cancelled ${new Date(invoice.cancelledAt).toLocaleDateString("en-IN")})` : ""}.
+          </p>
+        </div>
+      )}
       <div className="flex items-start justify-between border-b border-ink-200 pb-4">
         <div className="flex items-center gap-3">
           <Image src={company.logoUrl} alt={company.name} width={56} height={56} className="rounded-md" />

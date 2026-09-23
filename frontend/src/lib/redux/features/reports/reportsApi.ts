@@ -14,18 +14,22 @@ export const reportsApi = apiSlice.injectEndpoints({
     getDashboard: builder.query<DashboardSummary, void>({
       query: () => "/api/reports/dashboard",
       transformResponse: unwrap<DashboardSummary>,
+      providesTags: ["Report"],
     }),
     getSalesReport: builder.query<SalesReportRow[], { period: SalesPeriod } & DateRangeInput>({
       query: ({ period, ...range }) => `/api/reports/sales${toQueryString(range, { period })}`,
       transformResponse: unwrap<SalesReportRow[]>,
+      providesTags: ["Report"],
     }),
     getProductWiseReport: builder.query<ProductWiseRow[], DateRangeInput | void>({
       query: (range) => `/api/reports/products${toQueryString(range ?? undefined)}`,
       transformResponse: unwrap<ProductWiseRow[]>,
+      providesTags: ["Report"],
     }),
     getUserWiseReport: builder.query<UserWiseRow[], DateRangeInput | void>({
       query: (range) => `/api/reports/users${toQueryString(range ?? undefined)}`,
       transformResponse: unwrap<UserWiseRow[]>,
+      providesTags: ["Report"],
     }),
   }),
 });

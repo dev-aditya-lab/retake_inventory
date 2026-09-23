@@ -14,11 +14,15 @@ export function productBarcodePath(id: string, format: "png" | "svg" = "png"): s
   return `/api/products/${id}/barcode?format=${format}`;
 }
 
+export type ProductStatusFilter = "active" | "inactive" | "all";
+
 export interface ProductListFilters {
   search?: string;
   category?: string;
   type?: ProductType;
   lowStockOnly?: boolean;
+  /** Defaults to "active" on the server. */
+  status?: ProductStatusFilter;
 }
 
 interface CreateProductInput {
@@ -36,8 +40,16 @@ interface CreateProductInput {
   note?: string;
 }
 
-interface UpdateProductInput {
+export interface UpdateProductInput {
   id: string;
+  // Admin-only identity fields. Changing a Retake product's name/type/weight
+  // regenerates its barcode (and its SKU, if it was the auto-built one).
+  name?: string;
+  type?: ProductType;
+  weightLabel?: string;
+  sku?: string;
+  /** External products only. */
+  barcode?: string;
   category?: string;
   hsnCode?: string;
   costPrice?: number;
@@ -60,6 +72,7 @@ function toQueryString(filters: ProductListFilters): string {
   if (filters.category) params.set("category", filters.category);
   if (filters.type) params.set("type", filters.type);
   if (filters.lowStockOnly) params.set("lowStockOnly", "true");
+  if (filters.status) params.set("status", filters.status);
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }
@@ -90,12 +103,22 @@ export const productsApi = apiSlice.injectEndpoints({
     createProduct: builder.mutation<Product, CreateProductInput>({
       query: (body) => ({ url: "/api/products", method: "POST", body }),
       transformResponse: unwrap<Product>,
-      invalidatesTags: [{ type: "Product", id: "LIST" }],
+      invalidatesTags: [{ type: "Product", id: "LIST" }, "SkuCode", "HsnCode"],
     }),
     updateProduct: builder.mutation<Product, UpdateProductInput>({
       query: ({ id, ...body }) => ({ url: `/api/products/${id}`, method: "PATCH", body }),
       transformResponse: unwrap<Product>,
-      invalidatesTags: (_result, _error, { id }) => [{ type: "Product", id }, { type: "Product", id: "LIST" }],
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: "Product", id },
+        { type: "Product", id: "LIST" },
+        // Product counts on the SKU/HSN code pages can change.
+        "SkuCode",
+        "HsnCode",
+      ],
+    }),
+    deleteProduct: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/products/${id}`, method: "DELETE" }),
+      invalidatesTags: (_result, _error, id) => [{ type: "Product", id }, { type: "Product", id: "LIST" }, "SkuCode", "HsnCode"],
     }),
     adjustStock: builder.mutation<Product, AdjustStockInput>({
       query: ({ id, ...body }) => ({ url: `/api/products/${id}/stock`, method: "POST", body }),
@@ -112,5 +135,6 @@ export const {
   useLazyDecodeBarcodeQuery,
   useCreateProductMutation,
   useUpdateProductMutation,
+  useDeleteProductMutation,
   useAdjustStockMutation,
 } = productsApi;

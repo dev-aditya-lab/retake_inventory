@@ -13,6 +13,9 @@ import { productRouter } from "./routes/product.routes";
 import { cartRouter } from "./routes/cart.routes";
 import { invoiceRouter } from "./routes/invoice.routes";
 import { reportRouter } from "./routes/report.routes";
+import { catalogCodeRouter } from "./routes/catalogCode.routes";
+import { hsnCodeRouter } from "./routes/hsnCode.routes";
+import { customerRouter } from "./routes/customer.routes";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { apiLimiter } from "./middleware/rateLimit";
 
@@ -46,6 +49,9 @@ export function createApp() {
   app.use("/api/carts", cartRouter);
   app.use("/api/invoices", invoiceRouter);
   app.use("/api/reports", reportRouter);
+  app.use("/api/sku-codes", catalogCodeRouter);
+  app.use("/api/hsn-codes", hsnCodeRouter);
+  app.use("/api/customers", customerRouter);
 
   // Further feature routers are mounted here as each phase lands.
 

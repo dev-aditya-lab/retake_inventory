@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Plus, Search, Upload, WifiOff } from "lucide-react";
-import { useListProductsQuery } from "@/lib/redux/features/products/productsApi";
+import { useListProductsQuery, type ProductStatusFilter } from "@/lib/redux/features/products/productsApi";
 import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -29,10 +29,15 @@ export default function ProductsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [type, setType] = useState<ProductType | "">("");
   const [lowStockOnly, setLowStockOnly] = useState(searchParams.get("lowStockOnly") === "true");
+  // Inactive products are hidden from billing and this list by default; managers can look them up to reactivate.
+  const [status, setStatus] = useState<ProductStatusFilter>("active");
   const search = useDebouncedValue(searchInput);
   const filters = { search: search || undefined, type: type || undefined, lowStockOnly };
 
-  const { data: onlineProducts, isLoading: isLoadingOnline } = useListProductsQuery(filters, { skip: !isOnline });
+  const { data: onlineProducts, isLoading: isLoadingOnline } = useListProductsQuery(
+    { ...filters, status: status === "active" ? undefined : status },
+    { skip: !isOnline },
+  );
 
   const [offlineProducts, setOfflineProducts] = useState<Product[] | null>(null);
   useEffect(() => {
@@ -105,6 +110,18 @@ export default function ProductsPage() {
             </option>
           ))}
         </select>
+        {canManageStock && isOnline && (
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ProductStatusFilter)}
+            aria-label="Product status"
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+          >
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">Active + inactive</option>
+          </select>
+        )}
         <label className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm">
           <input type="checkbox" checked={lowStockOnly} onChange={(e) => setLowStockOnly(e.target.checked)} />
           Low stock only
@@ -130,6 +147,11 @@ export default function ProductsPage() {
                       {p.name} · {p.type} · {p.weightLabel}
                     </span>
                     {p.barcodeSource === "external" && <ExternalBarcodeBadge />}
+                    {!p.isActive && (
+                      <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600">
+                        Inactive
+                      </span>
+                    )}
                   </p>
                   <p className="truncate text-xs text-muted">{p.sku}</p>
                 </div>

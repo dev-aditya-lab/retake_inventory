@@ -114,7 +114,7 @@ export const cartsApi = apiSlice.injectEndpoints({
     checkout: builder.mutation<Invoice, string>({
       query: (id) => ({ url: `/api/carts/${id}/checkout`, method: "POST" }),
       transformResponse: unwrap<Invoice>,
-      invalidatesTags: [{ type: "Product", id: "LIST" }],
+      invalidatesTags: [{ type: "Product", id: "LIST" }, { type: "Invoice", id: "LIST" }, "Report", "Customer"],
       async onQueryStarted(id, { dispatch, queryFulfilled }) {
         await queryFulfilled;
         dispatch(

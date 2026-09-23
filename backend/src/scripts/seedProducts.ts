@@ -3,9 +3,11 @@ import path from "node:path";
 import { parse } from "csv-parse/sync";
 import { connectDatabase, disconnectDatabase } from "../config/database";
 import { Product } from "../models/Product.model";
+import { CatalogCode } from "../models/CatalogCode.model";
 import { computeEan13CheckDigit } from "../utils/barcode";
-import { PRODUCT_CODES, type ProductType } from "../config/barcodeScheme";
+import type { ProductType } from "../config/barcodeScheme";
 import { logger } from "../config/logger";
+import { runMigrations } from "../migrations";
 
 interface ProductCsvRow {
   Category: string;
@@ -31,16 +33,20 @@ async function main() {
   const rows: ProductCsvRow[] = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
 
   await connectDatabase();
+  await runMigrations(); // makes sure the SKU code list is seeded
+
+  const codes = await CatalogCode.find().lean();
+  const productIdByName = new Map(codes.map((c) => [c.name, c.productId]));
 
   let created = 0;
   let skipped = 0;
 
   for (const row of rows) {
     const name = row.Product;
-    const expectedProductId = PRODUCT_CODES[name];
+    const expectedProductId = productIdByName.get(name);
     if (expectedProductId === undefined || String(expectedProductId) !== row["Product ID"]) {
       logger.warn(
-        `Skipping "${name}" — PRODUCT_CODES[${name}] (${expectedProductId}) doesn't match CSV Product ID (${row["Product ID"]})`,
+        `Skipping "${name}" — its SKU code list barcode ID (${expectedProductId}) doesn't match CSV Product ID (${row["Product ID"]})`,
       );
       skipped++;
       continue;

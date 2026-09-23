@@ -1,6 +1,6 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoicePdf, type InvoicePdfData } from "../pdf/InvoicePdf";
-import { generateInvoiceBarcodePng } from "./barcode.service";
+import { encodeInvoiceBarcode } from "./barcode.service";
 import { ApiError } from "../utils/ApiError";
 import type { InvoiceDoc } from "../models/Invoice.model";
 
@@ -27,7 +27,8 @@ export async function generateInvoicePdf(invoice: InvoiceDoc): Promise<Buffer> {
     grandTotal: invoice.grandTotal,
     amountInWords: invoice.amountInWords,
     paymentMethod: invoice.paymentMethod,
-    barcodePng: generateInvoiceBarcodePng(invoice.invoiceNumber),
+    cancelled: invoice.status === "void",
+    barcodeModules: encodeInvoiceBarcode(invoice.invoiceNumber),
   };
 
   return renderToBuffer(<InvoicePdf invoice={data} />);

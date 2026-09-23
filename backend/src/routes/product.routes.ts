@@ -24,4 +24,5 @@ productRouter.get("/:id", productController.getProduct);
 productRouter.get("/:id/barcode", productController.getProductBarcodeImage);
 productRouter.post("/", canManageStock, validateBody(createProductSchema), productController.createProduct);
 productRouter.patch("/:id", canManageStock, validateBody(updateProductSchema), productController.updateProduct);
+productRouter.delete("/:id", requireRole("admin"), productController.deleteProduct);
 productRouter.post("/:id/stock", canManageStock, validateBody(adjustStockSchema), productController.adjustStock);

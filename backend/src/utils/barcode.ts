@@ -1,7 +1,7 @@
 import {
   COUNTRY_CODE,
   DEFAULT_VARIANT,
-  PRODUCT_CODES,
+  MAX_PRODUCT_ID,
   TYPE_CODES,
   WEIGHT_CODES,
   type ProductType,
@@ -29,22 +29,22 @@ export function computeEan13CheckDigit(digits12: string): string {
 }
 
 export interface BuildBarcodeInput {
-  productName: string;
+  /** The catalog's PPP product id (CatalogCode.productId), e.g. 1 for Turmeric. */
+  productId: number;
   type: ProductType;
   weightLabel: string;
   variant?: string;
 }
 
 /** Builds the 12-digit base code: 890 + CC + PPP + WW + VV. */
-export function buildEan12({ productName, type, weightLabel, variant = DEFAULT_VARIANT }: BuildBarcodeInput): string {
+export function buildEan12({ productId, type, weightLabel, variant = DEFAULT_VARIANT }: BuildBarcodeInput): string {
   const typeCode = TYPE_CODES[type];
   if (!typeCode) {
     throw ApiError.badRequest(`Unknown product type "${type}"`);
   }
 
-  const productId = PRODUCT_CODES[productName];
-  if (productId === undefined) {
-    throw ApiError.badRequest(`Unknown product "${productName}" — add it to barcodeScheme.PRODUCT_CODES first`);
+  if (!Number.isInteger(productId) || productId < 1 || productId > MAX_PRODUCT_ID) {
+    throw ApiError.badRequest(`Product id must be a whole number from 1 to ${MAX_PRODUCT_ID}, got "${productId}"`);
   }
   const productCode = String(productId).padStart(3, "0");
 
@@ -75,13 +75,17 @@ export function isValidEan13(code: string): boolean {
 
 export interface DecodedBarcode {
   type: ProductType;
-  productName: string;
+  /** The PPP segment — resolve it to a product name via the catalog codes. */
   productId: number;
   weightLabel: string;
   variant: string;
 }
 
-/** Reverses buildEan13: pulls the product/type/weight back out of a scanned Retake barcode. */
+/**
+ * Reverses buildEan13: pulls the type/product id/weight back out of a scanned
+ * Retake barcode. Only checks the structure — whether the product id is in
+ * the catalog is the caller's job (see catalogCode.service).
+ */
 export function decodeEan13(code: string): DecodedBarcode {
   if (!isValidEan13(code)) {
     throw ApiError.badRequest(`"${code}" is not a valid EAN-13 barcode (bad length or check digit)`);
@@ -101,8 +105,7 @@ export function decodeEan13(code: string): DecodedBarcode {
   }
 
   const productId = Number(productCode);
-  const productName = Object.entries(PRODUCT_CODES).find(([, v]) => v === productId)?.[0];
-  if (!productName) {
+  if (productId < 1) {
     throw ApiError.badRequest(`"${code}" has an unrecognized product code "${productCode}"`);
   }
 
@@ -111,5 +114,31 @@ export function decodeEan13(code: string): DecodedBarcode {
     throw ApiError.badRequest(`"${code}" has an unrecognized weight code "${weightCode}"`);
   }
 
-  return { type, productName, productId, weightLabel, variant };
+  return { type, productId, weightLabel, variant };
+}
+
+export interface BarRun {
+  /** Start position, in modules. */
+  x: number;
+  /** Width, in modules. */
+  width: number;
+}
+
+/**
+ * Collapses a barcode's module pattern ("1" = bar, "0" = space, e.g. from
+ * JsBarcode's CODE128 encoder) into solid bar runs, so it can be drawn as
+ * vector rectangles that stay sharp at any zoom or print size.
+ */
+export function toBarRuns(modules: string): BarRun[] {
+  const runs: BarRun[] = [];
+  let start = -1;
+  for (let i = 0; i <= modules.length; i++) {
+    const isBar = modules[i] === "1";
+    if (isBar && start === -1) start = i;
+    if (!isBar && start !== -1) {
+      runs.push({ x: start, width: i - start });
+      start = -1;
+    }
+  }
+  return runs;
 }

@@ -1,7 +1,8 @@
 import path from "node:path";
 import { readFileSync } from "node:fs";
-import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, View, Text, Image, StyleSheet, Svg, Rect } from "@react-pdf/renderer";
 import { company } from "../config/company";
+import { toBarRuns } from "../utils/barcode";
 
 export interface InvoicePdfData {
   invoiceNumber: string;
@@ -28,7 +29,10 @@ export interface InvoicePdfData {
   grandTotal: number;
   amountInWords: string;
   paymentMethod: string;
-  barcodePng: Buffer;
+  /** Cancelled invoices still render (the customer's link keeps working) but are clearly marked. */
+  cancelled?: boolean;
+  /** CODE128 module pattern for the invoice number ("1" = bar), drawn as vector bars. */
+  barcodeModules: string;
 }
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
@@ -103,7 +107,18 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     marginTop: 20,
   },
-  barcode: { width: 140, height: 44 },
+  barcodeBlock: { alignItems: "center" },
+  barcodeText: { fontSize: 8, marginTop: 2, letterSpacing: 0.5 },
+  cancelledBanner: {
+    borderWidth: 1.5,
+    borderColor: "#a51722",
+    color: "#a51722",
+    padding: 6,
+    marginBottom: 10,
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: 700,
+  },
 });
 
 // Read into a Buffer (rather than passing the path string as `src`) because
@@ -112,6 +127,43 @@ const styles = StyleSheet.create({
 // and tries to fetch it remotely instead of reading it from disk — silently
 // dropping the logo. A Buffer skips that resolution path entirely.
 const logoBuffer = readFileSync(path.resolve(__dirname, "../assets/logo.png"));
+
+// Footer barcode geometry, in PDF points. 1pt per module (~0.35 mm) prints
+// comfortably above CODE128's minimum bar width for handheld scanners, and
+// the spec's 10-module quiet zone on each side keeps the edges readable.
+const BARCODE_MODULE_PT = 1;
+const BARCODE_QUIET_ZONE_MODULES = 10;
+const BARCODE_HEIGHT_PT = 34;
+
+/**
+ * Invoice-number barcode drawn as vector rectangles (not an embedded image),
+ * so the bars stay sharp and correctly proportioned at any zoom or print size.
+ */
+function InvoiceBarcode({ modules, value }: { modules: string; value: string }) {
+  const totalModules = modules.length + BARCODE_QUIET_ZONE_MODULES * 2;
+  return (
+    <View style={styles.barcodeBlock}>
+      <Svg
+        width={totalModules * BARCODE_MODULE_PT}
+        height={BARCODE_HEIGHT_PT}
+        viewBox={`0 0 ${totalModules} ${BARCODE_HEIGHT_PT}`}
+      >
+        <Rect x={0} y={0} width={totalModules} height={BARCODE_HEIGHT_PT} fill="#ffffff" />
+        {toBarRuns(modules).map((bar) => (
+          <Rect
+            key={bar.x}
+            x={bar.x + BARCODE_QUIET_ZONE_MODULES}
+            y={0}
+            width={bar.width}
+            height={BARCODE_HEIGHT_PT}
+            fill="#000000"
+          />
+        ))}
+      </Svg>
+      <Text style={styles.barcodeText}>{value}</Text>
+    </View>
+  );
+}
 
 export function InvoicePdf({ invoice }: { invoice: InvoicePdfData }) {
   return (
@@ -139,6 +191,10 @@ export function InvoicePdf({ invoice }: { invoice: InvoicePdfData }) {
             <Text style={styles.small}>{invoice.billingDate.toLocaleDateString("en-IN")}</Text>
           </View>
         </View>
+
+        {invoice.cancelled ? (
+          <Text style={styles.cancelledBanner}>CANCELLED — this invoice is no longer valid</Text>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.label}>Billed to</Text>
@@ -228,7 +284,7 @@ export function InvoicePdf({ invoice }: { invoice: InvoicePdfData }) {
             <Text style={styles.small}>{company.legalName}</Text>
             <Text style={styles.small}>{company.website}</Text>
           </View>
-          <Image src={invoice.barcodePng} style={styles.barcode} />
+          <InvoiceBarcode modules={invoice.barcodeModules} value={invoice.invoiceNumber} />
         </View>
       </Page>
     </Document>

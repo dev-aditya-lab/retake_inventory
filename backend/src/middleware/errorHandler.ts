@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import mongoose from "mongoose";
 import { ZodError } from "zod";
 import { ApiError } from "../utils/ApiError";
 import { logger } from "../config/logger";
@@ -14,6 +15,12 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
       message: "Validation failed",
       details: flattenZodError(err),
     });
+    return;
+  }
+
+  // A malformed id in the URL (e.g. /api/products/not-an-id) — the record can't exist.
+  if (err instanceof mongoose.Error.CastError) {
+    res.status(404).json({ success: false, message: "Not found" });
     return;
   }
 

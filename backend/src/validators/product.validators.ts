@@ -21,6 +21,13 @@ export const createProductSchema = z.object({
 });
 
 export const updateProductSchema = z.object({
+  // Identity fields — admin-only (enforced in the controller). Changing a
+  // Retake product's name/type/weight regenerates its barcode.
+  name: z.string().trim().min(1).optional(),
+  type: z.enum(["Whole", "Powder", "Blend"]).optional(),
+  weightLabel: z.string().trim().min(1).optional(),
+  sku: z.string().trim().min(1).max(40).optional(),
+  barcode: z.string().regex(/^\d{13}$/, "Must be a 13-digit EAN-13 code").optional(),
   category: z.string().trim().min(1).optional(),
   hsnCode: z.string().trim().optional(),
   image: z.string().url().optional(),
@@ -29,6 +36,14 @@ export const updateProductSchema = z.object({
   lowStockThreshold: z.number().min(0).optional(),
   note: z.string().optional(),
   isActive: z.boolean().optional(),
+});
+
+export const listProductsQuerySchema = z.object({
+  search: z.string().trim().optional(),
+  category: z.string().trim().optional(),
+  type: z.enum(["Whole", "Powder", "Blend"]).optional(),
+  lowStockOnly: z.enum(["true", "false"]).optional(),
+  status: z.enum(["active", "inactive", "all"]).optional(),
 });
 
 export const adjustStockSchema = z.object({

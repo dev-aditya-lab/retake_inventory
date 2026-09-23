@@ -4,7 +4,10 @@ import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Tag } from "lucide-react";
 import { useCreateProductMutation, useLazyDecodeBarcodeQuery } from "@/lib/redux/features/products/productsApi";
+import { useListSkuCodesQuery } from "@/lib/redux/features/catalog/catalogApi";
 import { ScannerInput } from "@/components/scanner/ScannerInput";
+import { HsnCodeSelect } from "@/components/products/HsnCodeSelect";
+import { getApiErrorMessage } from "@/lib/apiError";
 import { PRODUCT_TYPES, WEIGHT_LABELS, type ProductType } from "@/types/product";
 
 const EAN13_SHAPE = /^\d{13}$/;
@@ -35,6 +38,15 @@ export default function NewProductPage() {
     EAN13_SHAPE.test(searchParams.get("barcode") ?? "") ? searchParams.get("barcode") : null,
   );
   const [decodeBarcode] = useLazyDecodeBarcodeQuery();
+  const { data: skuCodes } = useListSkuCodesQuery();
+
+  // Picking a known spice fills in its category from the SKU code list.
+  function handleNameChange(value: string) {
+    setName(value);
+    const match = skuCodes?.find((c) => c.name.toLowerCase() === value.trim().toLowerCase());
+    if (match?.category) setCategory(match.category);
+  }
+  const nameIsKnown = !!skuCodes?.some((c) => c.name.toLowerCase() === name.trim().toLowerCase());
 
   async function handleScanToPrefill(code: string) {
     setScanError(null);
@@ -72,11 +84,7 @@ export default function NewProductPage() {
       }).unwrap();
       router.push(`/products/${product._id}`);
     } catch (err) {
-      const message =
-        err && typeof err === "object" && "data" in err
-          ? (err.data as { message?: string })?.message
-          : undefined;
-      setError(message ?? "Could not create product — check the details and try again.");
+      setError(getApiErrorMessage(err, "Could not create product — check the details and try again."));
     }
   }
 
@@ -89,8 +97,8 @@ export default function NewProductPage() {
         </p>
       ) : (
         <p className="mt-1 text-sm text-muted">
-          The product name must match Retake&apos;s barcode scheme (see the product catalog spec) so its
-          EAN-13 can be generated automatically.
+          Pick a name from the SKU code list so its SKU and EAN-13 barcode can be generated automatically. New
+          spice? An admin adds it on the SKU codes page first.
         </p>
       )}
 
@@ -120,11 +128,24 @@ export default function NewProductPage() {
         <Field label="Product name">
           <input
             required
+            list={externalBarcode ? undefined : "sku-code-names"}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => handleNameChange(e.target.value)}
             placeholder="e.g. Turmeric, Garam Masala"
             className="input"
           />
+          {!externalBarcode && (
+            <datalist id="sku-code-names">
+              {skuCodes?.map((c) => (
+                <option key={c._id} value={c.name} />
+              ))}
+            </datalist>
+          )}
+          {!externalBarcode && name.trim() && skuCodes && !nameIsKnown && (
+            <span className="text-xs font-normal text-warning">
+              &ldquo;{name.trim()}&rdquo; isn&apos;t in the SKU code list — the product can&apos;t get a barcode until it is.
+            </span>
+          )}
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
@@ -173,7 +194,7 @@ export default function NewProductPage() {
         </div>
 
         <Field label="HSN/SAC code">
-          <input value={hsnCode} onChange={(e) => setHsnCode(e.target.value)} className="input" />
+          <HsnCodeSelect value={hsnCode} onChange={setHsnCode} />
         </Field>
 
         <Field label="Note">

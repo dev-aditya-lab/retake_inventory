@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { navItems } from "@/lib/navigation";
+import { isNavItemVisible, navItems } from "@/lib/navigation";
 import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 
 export function Sidebar() {
   const pathname = usePathname();
   const { data: user } = useGetMeQuery();
-  const items = navItems.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
+  const items = navItems.filter((item) => isNavItemVisible(item, user?.role));
 
   return (
     <nav className="hidden w-56 shrink-0 border-r border-border bg-surface p-3 md:flex md:flex-col md:gap-1">

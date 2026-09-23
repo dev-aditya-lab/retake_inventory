@@ -67,3 +67,14 @@ Product EAN-13 barcodes are generated from category/product/weight codes documen
 `.claude/project info/project.md`, and are never stored as images — they're rendered on demand from
 product data (`jsbarcode` + `canvas` on the backend). `product.csv` in the same folder is the seed
 data source for the initial product catalog (see the Phase 2 seed script).
+
+Each spice's SKU code (`TUR`) and barcode product ID (`001`) live in the database and are managed by
+admins on the **SKU codes** page; HSN/SAC codes likewise on the **HSN codes** page. The starter code
+list is in `backend/src/config/defaultCatalogCodes.ts`, seeded once.
+
+## Data migrations
+
+One-time data migrations in `backend/src/migrations` run automatically on backend start (each at most
+once per database, tracked in the `migrations` collection). The first boot after this was added seeds
+the SKU code list, fills the HSN list from codes already on products, and builds the customer
+directory from past invoices.

@@ -10,6 +10,7 @@ import {
   useUpdateCartMutation,
   useCheckoutMutation,
 } from "@/lib/redux/features/carts/cartsApi";
+import { useLazyLookupCustomerQuery } from "@/lib/redux/features/customers/customersApi";
 import type { CartData, GstType, PaymentMethod } from "@/types/cart";
 import { PAYMENT_METHODS } from "@/types/cart";
 import type { Invoice } from "@/types/invoice";
@@ -159,9 +160,39 @@ function CustomerFields({
   const [phone, setPhone] = useState(cart.customer.phone ?? "");
   const [company, setCompany] = useState(cart.customer.company ?? "");
   const [gstin, setGstin] = useState(cart.customer.gstin ?? "");
+  const [lookupCustomer] = useLazyLookupCustomerQuery();
+  const [returningCustomer, setReturningCustomer] = useState<string | null>(null);
 
   function save() {
     onSave({ ...cart.customer, name, phone, company, gstin });
+  }
+
+  // Returning customer: fill in whatever the cashier left blank from the
+  // customer directory. Never overwrites anything already typed.
+  async function handlePhoneBlur() {
+    let details = { ...cart.customer, name, phone, company, gstin };
+    if (phone.replace(/\D/g, "").length >= 10) {
+      try {
+        const found = await lookupCustomer(phone.trim(), true).unwrap();
+        setReturningCustomer(found?.name ?? null);
+        if (found) {
+          details = {
+            ...details,
+            name: name || found.name,
+            company: company || found.company,
+            gstin: gstin || found.gstin,
+            email: details.email || found.email,
+            address: details.address || found.address,
+          };
+          setName((current) => current || found.name);
+          setCompany((current) => current || found.company);
+          setGstin((current) => current || found.gstin);
+        }
+      } catch {
+        // Lookup is a convenience — billing carries on without it.
+      }
+    }
+    onSave(details);
   }
 
   return (
@@ -169,10 +200,21 @@ function CustomerFields({
       <p className="mb-2 text-sm font-medium text-foreground">Customer (optional)</p>
       <div className="grid grid-cols-2 gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} placeholder="Name" className="input" />
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={save} placeholder="Phone" className="input" />
+        <input
+          type="tel"
+          inputMode="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          onBlur={handlePhoneBlur}
+          placeholder="Phone"
+          className="input"
+        />
         <input value={company} onChange={(e) => setCompany(e.target.value)} onBlur={save} placeholder="Company" className="input" />
         <input value={gstin} onChange={(e) => setGstin(e.target.value)} onBlur={save} placeholder="GSTIN" className="input" />
       </div>
+      {returningCustomer && (
+        <p className="mt-2 text-xs text-success">Returning customer ({returningCustomer}) — saved details filled in.</p>
+      )}
     </div>
   );
 }

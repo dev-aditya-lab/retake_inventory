@@ -1,12 +1,12 @@
 import type { Request, Response } from "express";
 import * as productService from "../services/product.service";
+import * as catalogCodeService from "../services/catalogCode.service";
 import { generateBarcodePng, generateBarcodeSvg } from "../services/barcode.service";
 import * as exportService from "../services/export.service";
 import * as importService from "../services/import.service";
-import { decodeEan13 } from "../utils/barcode";
 import { ApiError } from "../utils/ApiError";
-import type { ProductType } from "../config/barcodeScheme";
 import type { ExportFormat } from "../services/export.service";
+import { listProductsQuerySchema } from "../validators/product.validators";
 
 function parseDateRangeQuery(req: Request): { from?: Date; to?: Date } {
   const from = req.query.from ? new Date(String(req.query.from)) : undefined;
@@ -28,12 +28,13 @@ export async function createProduct(req: Request, res: Response): Promise<void> 
 }
 
 export async function listProducts(req: Request, res: Response): Promise<void> {
-  const { search, category, type, lowStockOnly } = req.query;
+  const { search, category, type, lowStockOnly, status } = listProductsQuerySchema.parse(req.query);
   const products = await productService.listProducts({
-    search: typeof search === "string" ? search : undefined,
-    category: typeof category === "string" ? category : undefined,
-    type: typeof type === "string" ? (type as ProductType) : undefined,
+    search: search || undefined,
+    category: category || undefined,
+    type,
     lowStockOnly: lowStockOnly === "true",
+    status,
   });
   res.json({ success: true, data: products });
 }
@@ -49,8 +50,19 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
 }
 
 export async function updateProduct(req: Request, res: Response): Promise<void> {
+  // Inventory managers can edit prices/stock details; changing what a product
+  // *is* (name, type, weight, SKU, barcode) is admin-only.
+  const touchesIdentity = productService.IDENTITY_FIELDS.some((field) => req.body[field] !== undefined);
+  if (touchesIdentity && req.user?.role !== "admin") {
+    throw ApiError.forbidden("Only admins can change a product's name, type, weight, SKU or barcode");
+  }
   const product = await productService.updateProduct(req.params.id as string, req.body);
   res.json({ success: true, data: product });
+}
+
+export async function deleteProduct(req: Request, res: Response): Promise<void> {
+  await productService.deleteProduct(req.params.id as string);
+  res.json({ success: true, data: null });
 }
 
 export async function adjustStock(req: Request, res: Response): Promise<void> {
@@ -76,7 +88,7 @@ export async function getProductBarcodeImage(req: Request, res: Response): Promi
 }
 
 export async function decodeBarcode(req: Request, res: Response): Promise<void> {
-  const decoded = decodeEan13(req.params.ean13 as string);
+  const decoded = await catalogCodeService.decodeBarcode(req.params.ean13 as string);
   res.json({ success: true, data: decoded });
 }
 
