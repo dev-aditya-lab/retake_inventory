@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as cartController from "../controllers/cart.controller";
+import * as nonGstBillController from "../controllers/nonGstBill.controller";
 import { validateBody } from "../middleware/validate";
 import { addCartItemSchema, updateCartItemSchema, updateCartSchema } from "../validators/cart.validators";
 import { authenticate, requireRole } from "../middleware/auth";
@@ -20,3 +21,5 @@ cartRouter.patch("/:id/items/:productId", validateBody(updateCartItemSchema), ca
 cartRouter.delete("/:id/items/:productId", cartController.removeItem);
 
 cartRouter.post("/:id/checkout", cartController.checkout);
+// A cart set to "GST not applicable" checks out here instead — separate bill, number series and records.
+cartRouter.post("/:id/checkout-non-gst", nonGstBillController.checkout);

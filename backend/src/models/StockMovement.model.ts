@@ -13,7 +13,9 @@ const stockMovementSchema = new Schema(
     },
     quantityChange: { type: Number, required: true }, // positive = added, negative = removed
     resultingQuantity: { type: Number, required: true },
+    // The bill that moved the stock: a GST invoice, or (never both) a non-GST bill.
     invoice: { type: Types.ObjectId, ref: "Invoice" },
+    nonGstBill: { type: Types.ObjectId, ref: "NonGstBill" },
     user: { type: Types.ObjectId, ref: "User", required: true },
     note: { type: String, default: "" },
   },

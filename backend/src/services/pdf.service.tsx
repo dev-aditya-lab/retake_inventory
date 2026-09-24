@@ -1,6 +1,8 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoicePdf, type InvoicePdfData } from "../pdf/InvoicePdf";
 import { TaxInvoicePdf, type TaxDocPdfData } from "../pdf/TaxInvoicePdf";
+import { NonGstBillPdf, type NonGstBillPdfData } from "../pdf/NonGstBillPdf";
+import type { NonGstBillDoc } from "../models/NonGstBill.model";
 import { encodeInvoiceBarcode } from "./barcode.service";
 import { supplierSnapshot } from "./gstDocument.service";
 import { ApiError } from "../utils/ApiError";
@@ -117,6 +119,26 @@ export async function generateInvoicePdf(invoice: InvoiceDoc): Promise<Buffer> {
   };
 
   return renderToBuffer(<InvoicePdf invoice={data} />);
+}
+
+export async function generateNonGstBillPdf(bill: NonGstBillDoc): Promise<Buffer> {
+  if (!bill.customer) throw ApiError.badRequest("Bill is missing required data");
+
+  const data: NonGstBillPdfData = {
+    billNumber: bill.billNumber,
+    billingDate: bill.billingDate,
+    customer: bill.customer,
+    items: bill.items,
+    priceList: bill.priceList,
+    otherCharges: bill.otherCharges,
+    subtotal: bill.subtotal,
+    grandTotal: bill.grandTotal,
+    amountInWords: bill.amountInWords,
+    paymentMethod: bill.paymentMethod,
+    cancelled: bill.status === "void",
+    barcodeModules: encodeInvoiceBarcode(bill.billNumber),
+  };
+  return renderToBuffer(<NonGstBillPdf bill={data} />);
 }
 
 export async function generateCreditNotePdf(note: CreditNoteDoc): Promise<Buffer> {

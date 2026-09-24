@@ -16,16 +16,21 @@ import { buildGstDocument, lineFromProduct, resolveBuyer, type GstBillLine, type
 import { assertBillChangeable, isPeriodFiled } from "./gstFiling.service";
 import { GstFiling } from "../models/GstFiling.model";
 import type { PaymentMethod } from "../types/cart";
+import type { PriceMode } from "../utils/gstCalc";
 
 export async function checkout(userId: string, cartId: string) {
   const cart = await cartService.getCart(userId, cartId);
 
+  if (cartService.isNonGstCart(cart)) {
+    throw ApiError.badRequest("This cart is set to a non-GST bill — check out with the non-GST bill instead");
+  }
   if (cart.items.length === 0) throw ApiError.badRequest("Cart is empty");
   if (!cart.customer.name?.trim()) throw ApiError.badRequest("Customer name is required");
   if (!cart.paymentMethod) throw ApiError.badRequest("Payment method is required");
 
   const customer = { ...cart.customer, name: cart.customer.name.trim() };
-  const buyer = resolveBuyer(customer);
+  const priceMode = cartService.cartPriceMode(cart);
+  const buyer = resolveBuyer(customer, priceMode);
 
   const session = await mongoose.startSession();
   let invoiceId: mongoose.Types.ObjectId | undefined;
@@ -44,10 +49,10 @@ export async function checkout(userId: string, cartId: string) {
         products.set(item.productId, product);
       }
 
-      // Prices come from the product at checkout: B2B price for GSTIN buyers,
-      // MRP for everyone else.
+      // Prices come from the product at checkout: the B2B price when the
+      // counter chose B2B, the MRP otherwise.
       const lines = cart.items.map((item) => lineFromProduct(products.get(item.productId)!, item.quantity, buyer.priceMode));
-      const { fields } = buildGstDocument({ customer, lines, otherCharges: cart.otherCharges });
+      const { fields } = buildGstDocument({ customer, lines, otherCharges: cart.otherCharges, priceMode });
 
       const resultingQuantities = new Map<string, number>();
       for (const item of cart.items) {
@@ -170,7 +175,7 @@ export async function listInvoices({ search, status, customerId, from, to, page,
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "invoiceNumber billingDate customer customerRef items.quantity grandTotal creditedTotal gstVersion buyerType paymentMethod status whatsappSentAt editedAt cancelledAt cancelReason",
+        "invoiceNumber billingDate customer customerRef items.quantity grandTotal creditedTotal gstVersion buyerType priceMode paymentMethod status whatsappSentAt editedAt cancelledAt cancelReason",
       )
       .lean(),
     Invoice.countDocuments(query),
@@ -197,7 +202,11 @@ export async function listInvoices({ search, status, customerId, from, to, page,
 
 export interface UpdateInvoiceInput {
   customer: GstCustomerInput & { name: string };
-  /** unitPrice is read per the buyer: excluding GST (B2B) or the MRP (retail). */
+  /**
+   * The price list unitPrice is read from: "exclusive" = B2B price excluding
+   * GST, "inclusive" = the MRP. Left out, the bill keeps the one it was made at.
+   */
+  priceMode?: PriceMode;
   items: { product: string; quantity: number; unitPrice: number }[];
   otherCharges: number;
   paymentMethod: PaymentMethod;
@@ -230,7 +239,9 @@ export async function updateInvoice(invoiceNumber: string, userId: string, input
       await assertBillChangeable(invoice.billingDate, "edited");
       invoiceId = invoice._id as mongoose.Types.ObjectId;
 
-      const buyer = resolveBuyer(input.customer);
+      // A bill from before per-line GST has no stored price list — it follows the GSTIN, as it always did.
+      const priceMode = input.priceMode ?? (invoice.priceMode as PriceMode | null | undefined) ?? undefined;
+      const buyer = resolveBuyer(input.customer, priceMode);
 
       const oldLines = invoice.items.map((item) => ({ productId: String(item.product), quantity: item.quantity }));
       const oldLineByProduct = new Map(invoice.items.map((item) => [String(item.product), item]));
@@ -265,7 +276,7 @@ export async function updateInvoice(invoiceNumber: string, userId: string, input
         }
         return { ...lineFromProduct(product, item.quantity, buyer.priceMode, item.unitPrice), name: existing?.name ?? product.name };
       });
-      const { fields } = buildGstDocument({ customer: input.customer, lines, otherCharges: input.otherCharges });
+      const { fields } = buildGstDocument({ customer: input.customer, lines, otherCharges: input.otherCharges, priceMode });
 
       const movements: Record<string, unknown>[] = [];
       for (const [productId, delta] of computeStockDeltas(oldLines, newLines)) {

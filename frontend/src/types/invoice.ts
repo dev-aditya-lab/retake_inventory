@@ -110,6 +110,8 @@ export interface InvoiceListItem {
   _id: string;
   gstVersion?: number;
   buyerType?: "B2B" | "B2C";
+  /** exclusive = billed at the B2B price (GST on top); inclusive = at the retail MRP. */
+  priceMode?: "exclusive" | "inclusive";
   gstLocked?: boolean;
   creditedTotal?: number;
   invoiceNumber: string;

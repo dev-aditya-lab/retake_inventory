@@ -19,6 +19,8 @@ const gstSchema = z.object({
 
 export const updateCartSchema = z.object({
   customer: customerSchema.optional(),
+  isB2b: z.boolean().optional(),
+  gstApplicable: z.boolean().optional(),
   gst: gstSchema.optional(),
   otherCharges: z.number().min(0).optional(),
   paymentMethod: z.enum(["cash", "cheque", "upi", "bank_transfer"]).optional(),

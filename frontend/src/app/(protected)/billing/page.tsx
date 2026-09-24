@@ -6,7 +6,7 @@ import { useListCartsQuery, useCreateCartMutation, useDiscardCartMutation } from
 import { CartPanel } from "@/components/billing/CartPanel";
 import { InvoiceSuccess } from "@/components/billing/InvoiceSuccess";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import type { Invoice } from "@/types/invoice";
+import type { CompletedSale } from "@/types/cart";
 
 export default function BillingPage() {
   const isOnline = useOnlineStatus();
@@ -18,7 +18,7 @@ export default function BillingPage() {
   const [discardCart] = useDiscardCartMutation();
 
   const [activeCartId, setActiveCartId] = useState<string | null>(null);
-  const [completed, setCompleted] = useState<Record<string, Invoice>>({});
+  const [completed, setCompleted] = useState<Record<string, CompletedSale>>({});
 
   // Auto-open a first cart so the billing screen is never empty. Deferred by
   // a macrotask so React Strict Mode's dev-only double-invoke (mount ->
@@ -65,8 +65,8 @@ export default function BillingPage() {
     if (effectiveActiveCartId === id) setActiveCartId(null);
   }
 
-  function handleCheckedOut(cartId: string, invoice: Invoice) {
-    setCompleted((prev) => ({ ...prev, [cartId]: invoice }));
+  function handleCheckedOut(cartId: string, sale: CompletedSale) {
+    setCompleted((prev) => ({ ...prev, [cartId]: sale }));
   }
 
   const tabIds = [...(carts ?? []).map((c) => c.id), ...Object.keys(completed).filter((id) => !carts?.some((c) => c.id === id))];
@@ -93,8 +93,8 @@ export default function BillingPage() {
       <div className="mt-4 flex flex-wrap gap-2 border-b border-border pb-2">
         {tabIds.map((id, i) => {
           const cart = carts?.find((c) => c.id === id);
-          const invoice = completed[id];
-          const label = invoice ? "Sale complete" : cart?.customer.name || `Customer ${i + 1}`;
+          const sale = completed[id];
+          const label = sale ? "Sale complete" : cart?.customer.name || `Customer ${i + 1}`;
           return (
             <div key={id} className="flex items-center">
               <button
@@ -132,7 +132,7 @@ export default function BillingPage() {
 
         {effectiveActiveCartId && completed[effectiveActiveCartId] && (
           <InvoiceSuccess
-            invoice={completed[effectiveActiveCartId]!}
+            sale={completed[effectiveActiveCartId]!}
             onNewSale={() => handleCloseTab(effectiveActiveCartId)}
           />
         )}
@@ -142,7 +142,7 @@ export default function BillingPage() {
           (() => {
             const cart = carts?.find((c) => c.id === effectiveActiveCartId);
             if (!cart) return null;
-            return <CartPanel cart={cart} onCheckedOut={(invoice) => handleCheckedOut(effectiveActiveCartId, invoice)} />;
+            return <CartPanel cart={cart} onCheckedOut={(sale) => handleCheckedOut(effectiveActiveCartId, sale)} />;
           })()}
 
         {!effectiveActiveCartId && !isLoading && tabIds.length === 0 && (

@@ -11,33 +11,51 @@ import {
   useRemoveCartItemMutation,
   useUpdateCartMutation,
   useCheckoutMutation,
+  useCheckoutNonGstMutation,
 } from "@/lib/redux/features/carts/cartsApi";
 import { useLazyLookupCustomerQuery } from "@/lib/redux/features/customers/customersApi";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatCurrency } from "@/lib/format";
 import { gstinStateCode, looksLikeGstin } from "@/lib/gstCalc";
 import { B2C_FULL_DETAILS_THRESHOLD, SUPPLIER_STATE_CODE } from "@/config/gst";
-import type { CartData, PaymentMethod } from "@/types/cart";
+import type { CartData, CompletedSale, PaymentMethod } from "@/types/cart";
 import { PAYMENT_METHODS } from "@/types/cart";
-import type { Invoice } from "@/types/invoice";
+
+/** What a cart line needs to show: its price, its total and — on GST bills — its rate. */
+interface PricedLine {
+  unitPrice: number;
+  total: number;
+  gstRate?: number;
+}
 
 /**
  * One billing tab. Every price, tax and total shown comes from the server's
- * preview of the cart (`cart.preview`) — the same GST rules checkout applies —
- * so what the cashier sees is exactly what the tax invoice will say.
+ * preview of the cart (`cart.preview`) — the same rules checkout applies — so
+ * what the cashier sees is exactly what the bill will say.
+ *
+ * Two checkboxes shape the bill: "B2B" picks the price list, and "GST
+ * applicable" picks the kind of bill. Ticking GST off makes a non-GST bill —
+ * a separate bill number, section and records, never part of a GST return.
  */
-export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut: (invoice: Invoice) => void }) {
+export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut: (sale: CompletedSale) => void }) {
   const [addItem] = useAddCartItemMutation();
   const [updateItem] = useUpdateCartItemMutation();
   const [removeItem] = useRemoveCartItemMutation();
   const [updateCart] = useUpdateCartMutation();
-  const [checkout, { isLoading: isCheckingOut }] = useCheckoutMutation();
+  const [checkout, { isLoading: isCheckingOutGst }] = useCheckoutMutation();
+  const [checkoutNonGst, { isLoading: isCheckingOutNonGst }] = useCheckoutNonGstMutation();
   const [scanError, setScanError] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  const gstApplicable = cart.gstApplicable !== false;
+  const isCheckingOut = isCheckingOutGst || isCheckingOutNonGst;
+
   const preview = cart.preview;
-  const lineById = new Map(preview?.lines.map((line) => [line.productId, line]) ?? []);
-  const isIntra = (preview?.supplyType ?? "intra") === "intra";
+  // Narrowed views of the preview: the GST one carries tax, the non-GST one doesn't.
+  const gstPreview = preview?.gstApplicable ? preview : undefined;
+  const nonGstPreview = preview && !preview.gstApplicable ? preview : undefined;
+  const lineById = new Map<string, PricedLine>(preview?.lines.map((line) => [line.productId, line]) ?? []);
+  const isIntra = (gstPreview?.supplyType ?? "intra") === "intra";
   const problems = preview?.problems ?? [];
 
   async function handleScan(code: string) {
@@ -52,11 +70,20 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
   async function handleCheckout() {
     setCheckoutError(null);
     try {
-      const invoice = await checkout(cart.id).unwrap();
-      onCheckedOut(invoice);
+      if (gstApplicable) {
+        onCheckedOut({ kind: "gst", invoice: await checkout(cart.id).unwrap() });
+      } else {
+        onCheckedOut({ kind: "non_gst", bill: await checkoutNonGst(cart.id).unwrap() });
+      }
     } catch (err) {
       setCheckoutError(getApiErrorMessage(err, "Could not complete the sale — please try again."));
     }
+  }
+
+  function linePriceNote(priced: PricedLine) {
+    if (nonGstPreview) return ` · ${nonGstPreview.priceList === "retail" ? "MRP" : "B2B"} ${formatCurrency(priced.unitPrice)}`;
+    if (gstPreview?.priceMode === "inclusive") return ` · MRP ${formatCurrency(priced.unitPrice)}`;
+    return ` · ${formatCurrency(priced.unitPrice)} + ${priced.gstRate}% GST`;
   }
 
   return (
@@ -79,10 +106,7 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
                     <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
                     <p className="text-xs text-muted">
                       {item.sku}
-                      {priced &&
-                        (preview?.priceMode === "inclusive"
-                          ? ` · MRP ${formatCurrency(priced.unitPrice)}`
-                          : ` · ${formatCurrency(priced.unitPrice)} + ${priced.gstRate}% GST`)}
+                      {priced && linePriceNote(priced)}
                       {!priced && preview && " · can't be billed yet"}
                     </p>
                   </div>
@@ -126,47 +150,81 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
       <CustomerFields
         key={cart.id}
         cart={cart}
+        gstApplicable={gstApplicable}
         grandTotal={preview?.grandTotal ?? 0}
         onSave={(customer) => updateCart({ id: cart.id, customer })}
       />
-      <PaymentFields cart={cart} onSave={(updates) => updateCart({ id: cart.id, ...updates })} />
+      <PaymentFields
+        cart={cart}
+        gstApplicable={gstApplicable}
+        onSave={(updates) => updateCart({ id: cart.id, ...updates })}
+      />
+      <BillTypeFields cart={cart} onSave={(updates) => updateCart({ id: cart.id, ...updates })} />
 
-      {preview && (
+      {gstPreview && (
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <BuyerBadge priceMode={preview.priceMode} />
+            <BuyerBadge priceMode={gstPreview.priceMode} />
             <span className="text-xs text-muted">
-              {preview.placeOfSupply.name} · {isIntra ? "CGST + SGST" : "IGST"}
+              {gstPreview.placeOfSupply.name} · {isIntra ? "CGST + SGST" : "IGST"}
             </span>
           </div>
           <dl className="space-y-1 text-sm">
             <div className="flex justify-between">
               <dt className="text-muted">Taxable value</dt>
-              <dd className="text-foreground">{formatCurrency(preview.taxableValue)}</dd>
+              <dd className="text-foreground">{formatCurrency(gstPreview.taxableValue)}</dd>
             </div>
             {isIntra ? (
               <>
                 <div className="flex justify-between">
                   <dt className="text-muted">CGST</dt>
-                  <dd className="text-foreground">{formatCurrency(preview.cgst)}</dd>
+                  <dd className="text-foreground">{formatCurrency(gstPreview.cgst)}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted">SGST</dt>
-                  <dd className="text-foreground">{formatCurrency(preview.sgst)}</dd>
+                  <dd className="text-foreground">{formatCurrency(gstPreview.sgst)}</dd>
                 </div>
               </>
             ) : (
               <div className="flex justify-between">
                 <dt className="text-muted">IGST</dt>
-                <dd className="text-foreground">{formatCurrency(preview.igst)}</dd>
+                <dd className="text-foreground">{formatCurrency(gstPreview.igst)}</dd>
               </div>
             )}
-            {preview.otherCharges && (
-              <p className="text-xs text-muted">Includes other charges of {formatCurrency(preview.otherCharges.total)} (taxed at {preview.otherCharges.gstRate}%).</p>
+            {gstPreview.otherCharges && (
+              <p className="text-xs text-muted">
+                Includes other charges of {formatCurrency(gstPreview.otherCharges.total)} (taxed at{" "}
+                {gstPreview.otherCharges.gstRate}%).
+              </p>
             )}
             <div className="flex justify-between border-t border-border pt-1 text-base font-semibold">
               <dt className="text-foreground">Grand total</dt>
-              <dd className="text-foreground">{formatCurrency(preview.grandTotal)}</dd>
+              <dd className="text-foreground">{formatCurrency(gstPreview.grandTotal)}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
+
+      {nonGstPreview && (
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-700">Non-GST bill</span>
+            <span className="text-xs text-muted">{nonGstPreview.priceList === "b2b" ? "B2B price" : "Retail MRP"} · no tax added</span>
+          </div>
+          <dl className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-muted">Items total</dt>
+              <dd className="text-foreground">{formatCurrency(nonGstPreview.subtotal)}</dd>
+            </div>
+            {nonGstPreview.otherCharges > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-muted">Other charges</dt>
+                <dd className="text-foreground">{formatCurrency(nonGstPreview.otherCharges)}</dd>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-border pt-1 text-base font-semibold">
+              <dt className="text-foreground">Total</dt>
+              <dd className="text-foreground">{formatCurrency(nonGstPreview.grandTotal)}</dd>
             </div>
           </dl>
         </div>
@@ -191,18 +249,88 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
         disabled={isCheckingOut || cart.items.length === 0 || problems.length > 0}
         className="rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
       >
-        {isCheckingOut ? "Generating invoice…" : "Generate tax invoice"}
+        {isCheckingOut
+          ? gstApplicable
+            ? "Generating invoice…"
+            : "Generating bill…"
+          : gstApplicable
+            ? "Generate tax invoice"
+            : "Generate bill (no GST)"}
       </button>
     </div>
   );
 }
 
+/**
+ * The two choices that shape a bill, kept small and out of the way: one line
+ * of checkboxes just above the bill summary. They're independent — B2B only
+ * picks the price list, and a GSTIN typed above never flips it.
+ */
+function BillTypeFields({
+  cart,
+  onSave,
+}: {
+  cart: CartData;
+  onSave: (updates: { isB2b?: boolean; gstApplicable?: boolean }) => void;
+}) {
+  const gstApplicable = cart.gstApplicable !== false;
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-x-5">
+        <CheckboxItem
+          checked={cart.isB2b === true}
+          onChange={(checked) => onSave({ isB2b: checked })}
+          label="B2B"
+          title="Bill at the B2B price instead of the retail MRP"
+        />
+        <CheckboxItem
+          checked={gstApplicable}
+          onChange={(checked) => onSave({ gstApplicable: checked })}
+          label="GST applicable"
+          title="Untick to make a non-GST bill"
+        />
+      </div>
+      {!gstApplicable && (
+        <p className="text-xs text-muted">Non-GST bill — its own bill number, no tax, kept out of GST returns.</p>
+      )}
+    </div>
+  );
+}
+
+function CheckboxItem({
+  checked,
+  onChange,
+  label,
+  title,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  title: string;
+}) {
+  return (
+    // Vertical padding keeps a comfortable tap area without a big control.
+    <label title={title} className="flex cursor-pointer items-center gap-1.5 py-1.5 text-xs font-medium text-foreground">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary"
+      />
+      {label}
+    </label>
+  );
+}
+
 function CustomerFields({
   cart,
+  gstApplicable,
   grandTotal,
   onSave,
 }: {
   cart: CartData;
+  gstApplicable: boolean;
   grandTotal: number;
   onSave: (customer: CartData["customer"]) => void;
 }) {
@@ -216,8 +344,9 @@ function CustomerFields({
 
   const stateCode = cart.customer.stateCode ?? "";
   const autoState = looksLikeGstin(gstin) ? gstinStateCode(gstin) : SUPPLIER_STATE_CODE;
-  const outOfStateRetail = !gstin.trim() && (stateCode || autoState) !== SUPPLIER_STATE_CODE;
-  const needsFullDetails = !gstin.trim() && grandTotal >= B2C_FULL_DETAILS_THRESHOLD;
+  // GST-only rules: the buyer's state and the ₹50,000 name-and-address rule mean nothing on a non-GST bill.
+  const outOfStateRetail = gstApplicable && !gstin.trim() && (stateCode || autoState) !== SUPPLIER_STATE_CODE;
+  const needsFullDetails = gstApplicable && !gstin.trim() && grandTotal >= B2C_FULL_DETAILS_THRESHOLD;
 
   function current() {
     return { ...cart.customer, name, phone, company, gstin: gstin.trim().toUpperCase(), address };
@@ -270,15 +399,17 @@ function CustomerFields({
           placeholder="Phone"
           className="input"
         />
-        <input
-          value={gstin}
-          maxLength={15}
-          onChange={(e) => setGstin(e.target.value.toUpperCase())}
-          onBlur={save}
-          placeholder="GSTIN (B2B)"
-          aria-label="Customer GSTIN — makes this a B2B bill"
-          className="input uppercase"
-        />
+        {gstApplicable && (
+          <input
+            value={gstin}
+            maxLength={15}
+            onChange={(e) => setGstin(e.target.value.toUpperCase())}
+            onBlur={save}
+            placeholder="GSTIN (if any)"
+            aria-label="Customer GSTIN — goes on the tax invoice"
+            className="input uppercase"
+          />
+        )}
         <input value={company} onChange={(e) => setCompany(e.target.value)} onBlur={save} placeholder="Company" className="input" />
         <input
           value={address}
@@ -287,17 +418,24 @@ function CustomerFields({
           placeholder={outOfStateRetail || needsFullDetails ? "Address *" : "Address"}
           className="input col-span-2"
         />
-        <label className="col-span-2 flex flex-col gap-1 text-xs font-medium text-muted">
-          Place of supply
-          <PlaceOfSupplySelect
-            value={stateCode}
-            autoCode={autoState}
-            onChange={(code) => onSave({ ...current(), stateCode: code || undefined })}
-          />
-        </label>
+        {gstApplicable && (
+          <label className="col-span-2 flex flex-col gap-1 text-xs font-medium text-muted">
+            Place of supply
+            <PlaceOfSupplySelect
+              value={stateCode}
+              autoCode={autoState}
+              onChange={(code) => onSave({ ...current(), stateCode: code || undefined })}
+            />
+          </label>
+        )}
       </div>
       {returningCustomer && (
         <p className="mt-2 text-xs text-success">Returning customer ({returningCustomer}) — saved details filled in.</p>
+      )}
+      {gstApplicable && gstin.trim() && cart.isB2b !== true && (
+        <p className="mt-2 text-xs text-muted">
+          GSTIN added — the GSTIN goes on the invoice, but it&apos;s billed at retail MRP. Tick B2B above for the B2B price.
+        </p>
       )}
       {(outOfStateRetail || needsFullDetails) && !address.trim() && (
         <p className="mt-2 text-xs text-warning">
@@ -312,18 +450,23 @@ function CustomerFields({
 
 function PaymentFields({
   cart,
+  gstApplicable,
   onSave,
 }: {
   cart: CartData;
+  gstApplicable: boolean;
   onSave: (updates: { otherCharges?: number; paymentMethod?: PaymentMethod }) => void;
 }) {
   const [otherCharges, setOtherCharges] = useState(String(cart.otherCharges || ""));
-  const inclusive = (cart.preview?.priceMode ?? "inclusive") === "inclusive";
+  const inclusive = cart.isB2b !== true;
+  const chargesLabel = gstApplicable
+    ? `Other charges — packing/delivery (${inclusive ? "incl." : "excl."} GST, ₹)`
+    : "Other charges — packing/delivery (₹)";
 
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
       <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-        Other charges — packing/delivery ({inclusive ? "incl." : "excl."} GST, ₹)
+        {chargesLabel}
         <input
           type="number"
           min="0"

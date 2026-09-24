@@ -5,6 +5,7 @@ import {
   ScanBarcode,
   Receipt,
   ReceiptText,
+  FileText,
   Contact,
   Tags,
   Hash,
@@ -30,6 +31,8 @@ export const navItems: NavItem[] = [
   { label: "Billing", href: "/billing", icon: Receipt, mobilePriority: true },
   { label: "Barcode", href: "/barcode", icon: ScanBarcode, mobilePriority: true },
   { label: "Sales", href: "/sales", icon: ReceiptText },
+  // Bills made without GST — a separate section, never part of the GST returns.
+  { label: "Non-GST bills", href: "/non-gst-bills", icon: FileText, roles: ["admin"] },
   { label: "GST", href: "/gst", icon: Landmark, roles: ["admin"] },
   { label: "Customers", href: "/customers", icon: Contact, roles: ["admin"] },
   { label: "SKU codes", href: "/sku-codes", icon: Tags, roles: ["admin"] },

@@ -4,7 +4,9 @@ import { Product } from "../models/Product.model";
 import { ApiError } from "../utils/ApiError";
 import { company } from "../config/company";
 import { gstStateName } from "../config/gst";
-import { computeInvoiceTax } from "../utils/gstCalc";
+import { computeInvoiceTax, type PriceMode } from "../utils/gstCalc";
+import { computeNonGstTotals, nonGstPriceFor, priceListLabel } from "../utils/nonGstBill";
+import type { PriceList } from "../models/NonGstBill.model";
 import { lineFromProduct, productGstProblems, resolveBuyer, type BuyerContext } from "./gstDocument.service";
 import type { CartCustomer, CartData, CartGst, PaymentMethod } from "../types/cart";
 
@@ -33,6 +35,8 @@ export async function createCart(userId: string): Promise<CartData> {
     cashierId: userId,
     customer: {},
     items: [],
+    isB2b: false,
+    gstApplicable: true,
     gst: { enabled: false, percentage: 0 },
     otherCharges: 0,
     createdAt: now,
@@ -75,8 +79,15 @@ export async function getCart(userId: string, id: string): Promise<CartData> {
   return cart;
 }
 
+/** A cart made before the checkboxes existed has neither flag: retail prices, GST bill. */
+export const cartPriceMode = (cart: CartData): PriceMode => (cart.isB2b ? "exclusive" : "inclusive");
+export const cartPriceList = (cart: CartData): PriceList => (cart.isB2b ? "b2b" : "retail");
+export const isNonGstCart = (cart: CartData): boolean => cart.gstApplicable === false;
+
 export interface UpdateCartInput {
   customer?: CartCustomer;
+  isB2b?: boolean;
+  gstApplicable?: boolean;
   gst?: CartGst;
   otherCharges?: number;
   paymentMethod?: PaymentMethod;
@@ -163,17 +174,20 @@ export async function discardCart(userId: string, id: string): Promise<void> {
  * same rules as checkout, so the counter screen always matches the invoice.
  */
 export async function previewCart(cart: CartData) {
+  if (isNonGstCart(cart)) return previewNonGstCart(cart);
+
   const problems: string[] = [];
+  const priceMode = cartPriceMode(cart);
 
   let buyer: BuyerContext;
   try {
-    buyer = resolveBuyer(cart.customer);
+    buyer = resolveBuyer(cart.customer, priceMode);
   } catch (err) {
     problems.push(err instanceof ApiError ? err.message : "Check the customer details");
     buyer = {
       buyerType: "B2C",
       gstin: "",
-      priceMode: "inclusive",
+      priceMode,
       placeOfSupply: { code: company.stateCode, name: gstStateName(company.stateCode) },
       supplyType: "intra",
     };
@@ -202,6 +216,7 @@ export async function previewCart(cart: CartData) {
     : null;
 
   return {
+    gstApplicable: true as const,
     buyerType: buyer.buyerType,
     priceMode: buyer.priceMode,
     placeOfSupply: buyer.placeOfSupply,
@@ -224,6 +239,45 @@ export async function previewCart(cart: CartData) {
     igst: tax?.igst ?? 0,
     totalTax: tax?.totalTax ?? 0,
     grandTotal: tax?.grandTotal ?? 0,
+    problems,
+  };
+}
+
+/**
+ * The preview of a non-GST cart: each line at the chosen price list, no tax,
+ * plus anything that would stop checkout. Same rules as non-GST checkout.
+ */
+async function previewNonGstCart(cart: CartData) {
+  const problems: string[] = [];
+  const priceList = cartPriceList(cart);
+
+  const products = await Product.find({ _id: { $in: cart.items.map((i) => i.productId) } }).lean();
+  const byId = new Map(products.map((p) => [String(p._id), p]));
+
+  const lines = [];
+  for (const item of cart.items) {
+    const product = byId.get(item.productId);
+    if (!product) {
+      problems.push(`"${item.name}" no longer exists — remove it`);
+      continue;
+    }
+    const unitPrice = nonGstPriceFor(product, priceList);
+    if (unitPrice === null) {
+      problems.push(`"${product.name}" needs its ${priceListLabel(priceList)} set before it can be billed`);
+      continue;
+    }
+    lines.push({ product: String(product._id), name: product.name, quantity: item.quantity, unitPrice });
+  }
+
+  const totals = lines.length > 0 ? computeNonGstTotals(lines, cart.otherCharges) : null;
+
+  return {
+    gstApplicable: false as const,
+    priceList,
+    lines: totals?.lines.map((l) => ({ productId: l.product, unitPrice: l.unitPrice, total: l.total })) ?? [],
+    otherCharges: totals?.otherCharges ?? 0,
+    subtotal: totals?.subtotal ?? 0,
+    grandTotal: totals?.grandTotal ?? 0,
     problems,
   };
 }

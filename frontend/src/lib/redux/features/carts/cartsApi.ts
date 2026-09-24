@@ -1,10 +1,13 @@
 import { apiSlice, unwrap } from "../../apiSlice";
 import type { CartCustomer, CartData, CartGst, PaymentMethod } from "@/types/cart";
 import type { Invoice } from "@/types/invoice";
+import type { NonGstBill } from "@/types/nonGstBill";
 
 interface UpdateCartInput {
   id: string;
   customer?: CartCustomer;
+  isB2b?: boolean;
+  gstApplicable?: boolean;
   gst?: CartGst;
   otherCharges?: number;
   paymentMethod?: PaymentMethod;
@@ -125,6 +128,22 @@ export const cartsApi = apiSlice.injectEndpoints({
         );
       },
     }),
+    // A cart set to "GST not applicable". Deliberately touches only products and
+    // the non-GST list — never GST returns, reports or the customer directory.
+    checkoutNonGst: builder.mutation<NonGstBill, string>({
+      query: (id) => ({ url: `/api/carts/${id}/checkout-non-gst`, method: "POST" }),
+      transformResponse: unwrap<NonGstBill>,
+      invalidatesTags: [{ type: "Product", id: "LIST" }, { type: "NonGstBill", id: "LIST" }],
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        await queryFulfilled;
+        dispatch(
+          cartsApi.util.updateQueryData("listCarts", undefined, (draft) => {
+            const idx = draft.findIndex((c) => c.id === id);
+            if (idx !== -1) draft.splice(idx, 1);
+          }),
+        );
+      },
+    }),
   }),
 });
 
@@ -137,4 +156,5 @@ export const {
   useUpdateCartItemMutation,
   useRemoveCartItemMutation,
   useCheckoutMutation,
+  useCheckoutNonGstMutation,
 } = cartsApi;

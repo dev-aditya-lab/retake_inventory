@@ -240,7 +240,7 @@ function SaleRow({
             {!isClosed && invoice.editedAt && (
               <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600">Edited</span>
             )}
-            {invoice.buyerType === "B2B" && (
+            {(invoice.priceMode ? invoice.priceMode === "exclusive" : invoice.buyerType === "B2B") && (
               <span className="rounded-full bg-leaf-100 px-2 py-0.5 text-xs font-medium text-leaf-700">B2B</span>
             )}
             {invoice.gstLocked && !isCancelled && (

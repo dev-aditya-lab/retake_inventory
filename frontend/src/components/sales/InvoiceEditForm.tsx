@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Info, Minus, Plus, Search, Trash2 } from "lucide-react";
+import { Info, Minus, Plus, Trash2 } from "lucide-react";
 import { useUpdateInvoiceMutation } from "@/lib/redux/features/invoices/invoicesApi";
-import { useListProductsQuery } from "@/lib/redux/features/products/productsApi";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatCurrency } from "@/lib/format";
 import { gstinStateCode, looksLikeGstin, previewInvoiceTax, type PriceMode } from "@/lib/gstCalc";
@@ -14,6 +12,7 @@ import { BuyerBadge } from "@/components/gst/BuyerBadge";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/types/cart";
 import type { Invoice } from "@/types/invoice";
 import type { Product } from "@/types/product";
+import { AddProductPicker, Field } from "./billEditParts";
 
 interface Line {
   product: string;
@@ -67,16 +66,23 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
   const [note, setNote] = useState(invoice.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
+  // Which price list the lines are on is the bill's own choice, made at the
+  // counter — the GSTIN doesn't decide it. Bills from before per-line GST never
+  // stored one, so they fall back to "has a GSTIN", as they always were billed.
+  const [isB2b, setIsB2b] = useState(() =>
+    invoice.priceMode ? invoice.priceMode === "exclusive" : (invoice.customer.gstin ?? "").trim() !== "",
+  );
+  const priceMode: PriceMode = isB2b ? "exclusive" : "inclusive";
+
   const hasGstin = customer.gstin.trim() !== "";
-  const priceMode: PriceMode = hasGstin ? "exclusive" : "inclusive";
   const autoState = hasGstin && looksLikeGstin(customer.gstin) ? gstinStateCode(customer.gstin) : SUPPLIER_STATE_CODE;
   const placeOfSupply = stateCode || autoState;
   const supplyType = placeOfSupply === SUPPLIER_STATE_CODE ? "intra" : "inter";
 
-  function setGstin(value: string) {
-    const nextMode: PriceMode = value.trim() ? "exclusive" : "inclusive";
+  function toggleB2b(checked: boolean) {
+    const nextMode: PriceMode = checked ? "exclusive" : "inclusive";
     if (nextMode !== priceMode) {
-      // Buyer switched between B2B and retail: re-express prices so the amount paid stays the same.
+      // Switched between the B2B price and MRP: re-express prices so the amount paid stays the same.
       setLines((prev) =>
         prev.map((line) => {
           const price = toNumber(line.unitPrice);
@@ -85,6 +91,10 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
         }),
       );
     }
+    setIsB2b(checked);
+  }
+
+  function setGstin(value: string) {
     setCustomer((c) => ({ ...c, gstin: value.toUpperCase() }));
   }
 
@@ -170,6 +180,7 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
           gstin: customer.gstin.trim().toUpperCase(),
           stateCode: stateCode || undefined,
         },
+        priceMode,
         items: lines.map((line) => ({
           product: line.product,
           quantity: toNumber(line.quantity),
@@ -213,12 +224,12 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
               className="input"
             />
           </Field>
-          <Field label="GSTIN (makes it a B2B bill)">
+          <Field label="GSTIN (if any)">
             <input
               value={customer.gstin}
               maxLength={15}
               onChange={(e) => setGstin(e.target.value)}
-              placeholder="Blank for retail"
+              placeholder="Blank if none"
               className="input uppercase"
             />
           </Field>
@@ -243,6 +254,16 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
         <p className="mt-2 text-xs text-muted">
           {GST_STATES[placeOfSupply]} · {supplyType === "intra" ? "CGST + SGST" : "IGST"}
         </p>
+        <label className="mt-3 flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground">
+          <input
+            type="checkbox"
+            checked={isB2b}
+            onChange={(e) => toggleB2b(e.target.checked)}
+            className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary"
+          />
+          B2B
+          <span className="font-normal text-muted">— B2B price + GST; untick for MRP incl. GST (prices convert to keep the amount paid)</span>
+        </label>
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
@@ -429,84 +450,5 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
         {isSaving ? "Saving…" : "Save changes"}
       </button>
     </form>
-  );
-}
-
-/** Search by name/SKU, or scan/type a barcode (a HID scanner types the digits + Enter). */
-function AddProductPicker({ onAdd }: { onAdd: (product: Product) => string | null }) {
-  const [query, setQuery] = useState("");
-  const [problem, setProblem] = useState<string | null>(null);
-  const search = useDebouncedValue(query.trim());
-  const { data: results, isFetching } = useListProductsQuery({ search }, { skip: search.length < 2 });
-
-  function add(product: Product) {
-    const failure = onAdd(product);
-    setProblem(failure ? `${product.name}: ${failure}` : null);
-    if (!failure) setQuery("");
-  }
-
-  return (
-    <div className="mt-4 border-t border-border pt-4">
-      <label htmlFor="add-product-search" className="text-sm font-medium text-foreground">
-        Add a product
-      </label>
-      <div className="relative mt-1.5">
-        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-        <input
-          id="add-product-search"
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            // Scanner/Enter: add the single exact match straight away, and never submit the whole form.
-            if (e.key === "Enter") {
-              e.preventDefault();
-              if (results?.length === 1) add(results[0]!);
-            }
-          }}
-          placeholder="Name, SKU or barcode…"
-          className="input w-full pl-9"
-        />
-      </div>
-      {problem && <p className="mt-2 text-sm text-danger">{problem}</p>}
-      {search.length >= 2 && (
-        <ul className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border">
-          {isFetching && !results && <li className="p-3 text-sm text-muted">Searching…</li>}
-          {results?.length === 0 && <li className="p-3 text-sm text-muted">No products match.</li>}
-          {results?.slice(0, 8).map((product) => (
-            <li key={product._id} className="border-b border-border last:border-b-0">
-              <button
-                type="button"
-                onClick={() => add(product)}
-                className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-ink-50"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-foreground">
-                    {product.name} · {product.type} · {product.weightLabel}
-                  </span>
-                  <span className="block truncate text-xs text-muted">
-                    {product.sku} · {product.quantityInStock} in stock
-                  </span>
-                </span>
-                <span className="shrink-0 text-right text-xs text-foreground">
-                  MRP {product.mrp ? formatCurrency(product.mrp) : "—"}
-                  <br />
-                  B2B {product.sellingPrice ? formatCurrency(product.sellingPrice) : "—"}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
-  return (
-    <label className={`flex flex-col gap-1.5 text-sm font-medium text-foreground ${className}`}>
-      {label}
-      {children}
-    </label>
   );
 }

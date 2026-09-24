@@ -15,4 +15,7 @@ export const company = {
   gstin: "20DQZPG0668A1Z0",
   website: "https://retake.devaditya.dev",
   logoUrl: "/brand/logo.png",
+  // Number prefix of non-GST bills (RTKNG-260923-0001) — must match the backend's
+  // config/company.ts. Public bill links use it to tell the two kinds apart.
+  nonGstBillPrefix: "RTKNG",
 } as const;

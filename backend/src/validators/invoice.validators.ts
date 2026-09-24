@@ -19,7 +19,9 @@ export const updateInvoiceSchema = z.object({
     gstin: optionalGstinSchema.optional(),
     stateCode: stateCodeSchema.optional(),
   }),
-  // unitPrice: excluding GST for a buyer with a GSTIN, the MRP otherwise.
+  // Which price list unitPrice is from: "exclusive" = B2B price excl. GST, "inclusive" = MRP.
+  // Left out, the bill keeps the one it was made at.
+  priceMode: z.enum(["exclusive", "inclusive"]).optional(),
   items: z
     .array(
       z.object({

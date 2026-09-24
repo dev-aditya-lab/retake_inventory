@@ -20,7 +20,8 @@ export interface UpdateInvoiceInput {
   invoiceNumber: string;
   /** stateCode: place of supply (blank = from the GSTIN, or the shop's state). */
   customer: InvoiceCustomer & { stateCode?: string };
-  /** unitPrice: excluding GST for a buyer with a GSTIN, the MRP otherwise. */
+  /** The price list unitPrice is from: "exclusive" = B2B price excl. GST, "inclusive" = the MRP. */
+  priceMode: "exclusive" | "inclusive";
   items: { product: string; quantity: number; unitPrice: number }[];
   otherCharges: number;
   paymentMethod: PaymentMethod;

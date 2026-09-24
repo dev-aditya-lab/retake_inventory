@@ -4,10 +4,12 @@ import { useState, type FormEvent } from "react";
 import { CheckCircle2, MessageCircle } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useSendInvoiceWhatsappMutation } from "@/lib/redux/features/invoices/invoicesApi";
+import { useSendNonGstBillWhatsappMutation } from "@/lib/redux/features/nonGstBills/nonGstBillsApi";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatCurrency } from "@/lib/format";
 
 interface SendableInvoice {
+  /** The bill number — an invoice number, or a non-GST bill number. */
   invoiceNumber: string;
   grandTotal: number;
   customer: { name: string; phone?: string };
@@ -18,17 +20,28 @@ interface SendableInvoice {
  * type a different one (e.g. the customer wants it on another phone) — that
  * only changes where this message goes, not the number saved on the bill.
  */
-export function SendWhatsappDialog({ invoice, onClose }: { invoice: SendableInvoice | null; onClose: () => void }) {
+export function SendWhatsappDialog({
+  invoice,
+  onClose,
+  kind = "gst",
+}: {
+  invoice: SendableInvoice | null;
+  onClose: () => void;
+  /** Which kind of bill this is — each is sent through its own endpoint. */
+  kind?: "gst" | "non_gst";
+}) {
   return (
     <Modal open={!!invoice} onClose={onClose} title="Send bill on WhatsApp" size="sm">
       {/* Keyed so the form resets for each bill. */}
-      {invoice && <SendForm key={invoice.invoiceNumber} invoice={invoice} onClose={onClose} />}
+      {invoice && <SendForm key={invoice.invoiceNumber} invoice={invoice} kind={kind} onClose={onClose} />}
     </Modal>
   );
 }
 
-function SendForm({ invoice, onClose }: { invoice: SendableInvoice; onClose: () => void }) {
-  const [sendWhatsapp, { isLoading }] = useSendInvoiceWhatsappMutation();
+function SendForm({ invoice, kind, onClose }: { invoice: SendableInvoice; kind: "gst" | "non_gst"; onClose: () => void }) {
+  const [sendInvoiceWhatsapp, { isLoading: isSendingInvoice }] = useSendInvoiceWhatsappMutation();
+  const [sendBillWhatsapp, { isLoading: isSendingBill }] = useSendNonGstBillWhatsappMutation();
+  const isLoading = isSendingInvoice || isSendingBill;
   const [phone, setPhone] = useState(invoice.customer.phone ?? "");
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -43,7 +56,9 @@ function SendForm({ invoice, onClose }: { invoice: SendableInvoice; onClose: () 
     }
     try {
       const isDifferent = target !== (invoice.customer.phone ?? "").trim();
-      await sendWhatsapp({ invoiceNumber: invoice.invoiceNumber, phone: isDifferent ? target : undefined }).unwrap();
+      const phoneOverride = isDifferent ? target : undefined;
+      if (kind === "gst") await sendInvoiceWhatsapp({ invoiceNumber: invoice.invoiceNumber, phone: phoneOverride }).unwrap();
+      else await sendBillWhatsapp({ billNumber: invoice.invoiceNumber, phone: phoneOverride }).unwrap();
       setSentTo(target);
     } catch (err) {
       setError(getApiErrorMessage(err, "Could not send on WhatsApp — try again."));

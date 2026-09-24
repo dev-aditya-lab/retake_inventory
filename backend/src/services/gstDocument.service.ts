@@ -40,13 +40,19 @@ export interface BuyerContext {
 }
 
 /**
- * B2B when the buyer gives a (valid) GSTIN, otherwise retail. Place of supply:
+ * Who the bill is to, for GST. The buyer is B2B when they give a (valid)
+ * GSTIN, otherwise B2C — that is what GSTR-1 needs, so it never depends on
+ * anything but the GSTIN. Place of supply:
  *  - B2B: the state chosen, else the GSTIN's state;
  *  - retail: the state of the address recorded on the bill, else the shop's
  *    own state (IGST Act s.10(1)(ca)) — so an out-of-state retail sale needs
  *    the buyer's address.
+ *
+ * The price list is a separate choice made at the counter: "exclusive" bills
+ * the B2B price with GST on top, "inclusive" bills the MRP with GST inside.
+ * Pass it explicitly; left out, it follows the GSTIN as bills always used to.
  */
-export function resolveBuyer(customer: GstCustomerInput): BuyerContext {
+export function resolveBuyer(customer: GstCustomerInput, priceMode?: PriceMode): BuyerContext {
   const gstin = normalizeGstin(customer.gstin);
   if (gstin) {
     const problem = describeGstinProblem(gstin);
@@ -71,7 +77,7 @@ export function resolveBuyer(customer: GstCustomerInput): BuyerContext {
   return {
     buyerType,
     gstin,
-    priceMode: buyerType === "B2B" ? "exclusive" : "inclusive",
+    priceMode: priceMode ?? (buyerType === "B2B" ? "exclusive" : "inclusive"),
     placeOfSupply: { code: posCode, name: gstStateName(posCode) },
     supplyType: supplyTypeFor(company.stateCode, posCode),
   };
@@ -152,6 +158,8 @@ export interface BuildGstDocumentInput {
   customer: GstCustomerInput & { name: string };
   lines: GstBillLine[];
   otherCharges?: number;
+  /** The price list the lines were priced from (see resolveBuyer). */
+  priceMode?: PriceMode;
 }
 
 /**
@@ -160,8 +168,8 @@ export interface BuildGstDocumentInput {
  * a retail bill of ₹50,000 or more must carry the buyer's name, address and
  * state.
  */
-export function buildGstDocument({ customer, lines, otherCharges = 0 }: BuildGstDocumentInput) {
-  const buyer = resolveBuyer(customer);
+export function buildGstDocument({ customer, lines, otherCharges = 0, priceMode }: BuildGstDocumentInput) {
+  const buyer = resolveBuyer(customer, priceMode);
 
   for (const line of lines) {
     if (!isValidGstRate(line.gstRate)) throw ApiError.badRequest(`"${line.name}" has an invalid GST rate (${line.gstRate}%)`);

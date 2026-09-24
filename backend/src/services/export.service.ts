@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { Product } from "../models/Product.model";
 import { Invoice } from "../models/Invoice.model";
+import { NonGstBill } from "../models/NonGstBill.model";
 import { StockMovement } from "../models/StockMovement.model";
 import { toCsv } from "../utils/csv";
 import type { DateRange } from "./report.service";
@@ -143,6 +144,49 @@ export async function exportInvoices(format: ExportFormat, range: DateRange): Pr
   return buildWorkbookBuffer("Invoices", INVOICE_COLUMNS, rows);
 }
 
+const NON_GST_BILL_COLUMNS: ColumnDef[] = [
+  { header: "Bill Number", key: "billNumber", width: 20 },
+  { header: "Billing Date", key: "billingDate", width: 14 },
+  { header: "Customer Name", key: "customerName", width: 20 },
+  { header: "Customer Phone", key: "customerPhone", width: 16 },
+  { header: "Price List", key: "priceList", width: 10 },
+  { header: "Item Count", key: "itemCount", width: 10 },
+  { header: "Items Total", key: "subtotal", width: 12 },
+  { header: "Other Charges", key: "otherCharges", width: 12 },
+  { header: "Grand Total", key: "grandTotal", width: 12 },
+  { header: "Payment Method", key: "paymentMethod", width: 14 },
+  { header: "Status", key: "status", width: 10 },
+];
+
+/** Non-GST bills only — kept out of the GST invoice export. */
+export async function exportNonGstBills(format: ExportFormat, range: DateRange): Promise<Buffer> {
+  const bills = await NonGstBill.find(dateRangeMatch(range)).sort({ billingDate: -1 });
+  const rows = bills.map((bill) => ({
+    billNumber: bill.billNumber,
+    billingDate: bill.billingDate.toISOString().slice(0, 10),
+    customerName: bill.customer?.name ?? "",
+    customerPhone: bill.customer?.phone ?? "",
+    priceList: bill.priceList,
+    itemCount: bill.items.length,
+    subtotal: bill.subtotal,
+    otherCharges: bill.otherCharges,
+    grandTotal: bill.grandTotal,
+    paymentMethod: bill.paymentMethod,
+    status: bill.status,
+  }));
+
+  if (format === "csv") {
+    return Buffer.from(
+      toCsv(
+        rows,
+        NON_GST_BILL_COLUMNS.map((c) => c.key),
+      ),
+      "utf-8",
+    );
+  }
+  return buildWorkbookBuffer("Non-GST bills", NON_GST_BILL_COLUMNS, rows);
+}
+
 const STOCK_MOVEMENT_COLUMNS: ColumnDef[] = [
   { header: "Date", key: "date", width: 20 },
   { header: "Product", key: "productName", width: 20 },
@@ -150,7 +194,7 @@ const STOCK_MOVEMENT_COLUMNS: ColumnDef[] = [
   { header: "Type", key: "type", width: 12 },
   { header: "Quantity Change", key: "quantityChange", width: 14 },
   { header: "Resulting Quantity", key: "resultingQuantity", width: 16 },
-  { header: "Invoice Number", key: "invoiceNumber", width: 20 },
+  { header: "Invoice / Bill Number", key: "invoiceNumber", width: 20 },
   { header: "Staff", key: "userName", width: 18 },
   { header: "Note", key: "note", width: 24 },
 ];
@@ -168,12 +212,14 @@ export async function exportStockMovements(format: ExportFormat, range: DateRang
     .sort({ createdAt: -1 })
     .populate("product", "name sku")
     .populate("user", "name")
-    .populate("invoice", "invoiceNumber");
+    .populate("invoice", "invoiceNumber")
+    .populate("nonGstBill", "billNumber");
 
   const rows = movements.map((m) => {
     const product = m.product as unknown as { name?: string; sku?: string } | null;
     const user = m.user as unknown as { name?: string } | null;
     const invoice = m.invoice as unknown as { invoiceNumber?: string } | null;
+    const nonGstBill = m.nonGstBill as unknown as { billNumber?: string } | null;
     return {
       date: m.get("createdAt")?.toISOString() ?? "",
       productName: product?.name ?? "",
@@ -181,7 +227,7 @@ export async function exportStockMovements(format: ExportFormat, range: DateRang
       type: m.type,
       quantityChange: m.quantityChange,
       resultingQuantity: m.resultingQuantity,
-      invoiceNumber: invoice?.invoiceNumber ?? "",
+      invoiceNumber: invoice?.invoiceNumber ?? nonGstBill?.billNumber ?? "",
       userName: user?.name ?? "",
       note: m.note,
     };

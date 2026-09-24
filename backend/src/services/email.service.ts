@@ -12,6 +12,8 @@ interface SendInvoiceEmailParams {
   totalAmount: string;
   downloadUrl: string;
   pdfBuffer: Buffer;
+  /** What to call the document in the email; non-GST bills aren't "invoices". */
+  documentLabel?: "invoice" | "bill";
 }
 
 export async function sendInvoiceEmail(params: SendInvoiceEmailParams): Promise<void> {
@@ -19,13 +21,15 @@ export async function sendInvoiceEmail(params: SendInvoiceEmailParams): Promise<
     throw ApiError.badRequest("Email is not configured on this server");
   }
 
+  const label = params.documentLabel ?? "invoice";
+
   const { error } = await resend.emails.send({
     from: `${company.name} <${env.RESEND_FROM_EMAIL}>`,
     to: params.to,
-    subject: `Your ${company.name} invoice ${params.invoiceNumber}`,
+    subject: `Your ${company.name} ${label} ${params.invoiceNumber}`,
     html: `
       <p>Hi ${params.customerName},</p>
-      <p>Thanks for shopping with ${company.name}! Your invoice <strong>${params.invoiceNumber}</strong>
+      <p>Thanks for shopping with ${company.name}! Your ${label} <strong>${params.invoiceNumber}</strong>
       for &#8377;${params.totalAmount} is attached as a PDF, or you can view it online:
       <a href="${params.downloadUrl}">${params.downloadUrl}</a></p>
       <p>This is a computer generated email.</p>

@@ -12,6 +12,7 @@ import { userRouter } from "./routes/user.routes";
 import { productRouter } from "./routes/product.routes";
 import { cartRouter } from "./routes/cart.routes";
 import { invoiceRouter } from "./routes/invoice.routes";
+import { nonGstBillRouter } from "./routes/nonGstBill.routes";
 import { reportRouter } from "./routes/report.routes";
 import { catalogCodeRouter } from "./routes/catalogCode.routes";
 import { hsnCodeRouter } from "./routes/hsnCode.routes";
@@ -50,6 +51,7 @@ export function createApp() {
   app.use("/api/products", productRouter);
   app.use("/api/carts", cartRouter);
   app.use("/api/invoices", invoiceRouter);
+  app.use("/api/non-gst-bills", nonGstBillRouter);
   app.use("/api/reports", reportRouter);
   app.use("/api/sku-codes", catalogCodeRouter);
   app.use("/api/hsn-codes", hsnCodeRouter);

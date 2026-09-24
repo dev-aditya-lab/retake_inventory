@@ -32,6 +32,10 @@ export interface CartData {
   cashierId: string;
   customer: CartCustomer;
   items: CartItem[];
+  /** B2B price list (GST added on top) instead of retail MRP. Set at the counter; not implied by a GSTIN. */
+  isB2b?: boolean;
+  /** false = a non-GST bill: separate number series, no tax, never part of any GST return. Absent = GST. */
+  gstApplicable?: boolean;
   gst: CartGst;
   otherCharges: number;
   paymentMethod?: PaymentMethod;
