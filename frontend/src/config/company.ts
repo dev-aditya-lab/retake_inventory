@@ -15,6 +15,8 @@ export const company = {
   gstin: "20DQZPG0668A1Z0",
   website: "https://retake.devaditya.dev",
   logoUrl: "/brand/logo.png",
+  // Authorised signatory's signature, printed on every invoice and bill (same image the PDFs use).
+  signatureUrl: "/brand/authorized-signatory.png",
   // Number prefix of non-GST bills (RTKNG-260923-0001) — must match the backend's
   // config/company.ts. Public bill links use it to tell the two kinds apart.
   nonGstBillPrefix: "RTKNG",

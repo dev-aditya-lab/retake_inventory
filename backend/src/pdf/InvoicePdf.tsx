@@ -4,6 +4,7 @@ import { createCanvas, Image as CanvasImage } from "canvas";
 import { Document, Page, View, Text, Image, StyleSheet, Svg, Rect } from "@react-pdf/renderer";
 import { company } from "../config/company";
 import { toBarRuns } from "../utils/barcode";
+import { SignatoryBlock } from "./SignatoryBlock";
 
 export interface InvoicePdfData {
   invoiceNumber: string;
@@ -287,11 +288,15 @@ export function InvoicePdf({ invoice }: { invoice: InvoicePdfData }) {
           ))}
         </View>
 
-        <Text style={styles.footerNote}>This is a computer generated invoice and does not require signature.</Text>
+        <Text style={styles.footerNote}>This is a computer generated invoice.</Text>
         <Text style={styles.footerNote}>
           Goods once sold will only be exchanged as per store policy. All disputes are subject to {company.city}{" "}
           jurisdiction.
         </Text>
+
+        <View style={{ alignSelf: "flex-end", marginTop: 14 }} wrap={false}>
+          <SignatoryBlock legalName={company.legalName} />
+        </View>
 
         <View style={styles.footerRow}>
           <View>

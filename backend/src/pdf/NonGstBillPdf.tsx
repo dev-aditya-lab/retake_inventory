@@ -1,6 +1,7 @@
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
 import { company } from "../config/company";
 import { InvoiceBarcode, logoBuffer } from "./InvoicePdf";
+import { SignatoryBlock } from "./SignatoryBlock";
 
 export interface NonGstBillPdfData {
   billNumber: string;
@@ -189,11 +190,15 @@ export function NonGstBillPdf({ bill }: { bill: NonGstBillPdfData }) {
           ))}
         </View>
 
-        <Text style={styles.footerNote}>This is a computer generated bill and does not require signature. No GST is charged on it.</Text>
+        <Text style={styles.footerNote}>This is a computer generated bill. No GST is charged on it.</Text>
         <Text style={styles.footerNote}>
           Goods once sold will only be exchanged as per store policy. All disputes are subject to {company.city}{" "}
           jurisdiction.
         </Text>
+
+        <View style={{ alignSelf: "flex-end", marginTop: 14 }} wrap={false}>
+          <SignatoryBlock legalName={company.legalName} />
+        </View>
 
         <View style={styles.footerRow}>
           <View>

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { company } from "@/config/company";
 import { InvoiceBarcode } from "./InvoiceBarcode";
+import { AuthorisedSignatory } from "./AuthorisedSignatory";
 import type { GstDocumentFields, InvoiceCustomer, InvoiceItem, TaxAmounts } from "@/types/invoice";
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
@@ -256,10 +257,7 @@ export function TaxDocumentView({
           <p>This is a computer generated {title.toLowerCase()}.</p>
           <p>Goods once sold will only be exchanged as per store policy.</p>
         </div>
-        <div className="w-48 self-end text-center text-xs">
-          <p className="text-ink-600">For {supplier?.legalName}</p>
-          <p className="mt-8 border-t border-ink-400 pt-1">Authorised Signatory</p>
-        </div>
+        <AuthorisedSignatory legalName={supplier?.legalName} />
       </div>
 
       <div className="mt-4 flex justify-end border-t border-ink-200 pt-3">

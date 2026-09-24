@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { company } from "@/config/company";
 import { InvoiceBarcode } from "./InvoiceBarcode";
+import { AuthorisedSignatory } from "./AuthorisedSignatory";
 import { PAYMENT_METHODS } from "@/types/cart";
 import type { NonGstBill } from "@/types/nonGstBill";
 
@@ -116,11 +117,14 @@ export function NonGstBillView({ bill }: { bill: NonGstBill }) {
         ))}
       </div>
 
-      <div className="mt-5 text-xs text-ink-500">
-        <p>This is a computer generated bill and does not require signature. No GST is charged on it.</p>
-        <p>
-          Goods once sold will only be exchanged as per store policy. All disputes are subject to {company.city} jurisdiction.
-        </p>
+      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="text-xs text-ink-500">
+          <p>This is a computer generated bill. No GST is charged on it.</p>
+          <p>
+            Goods once sold will only be exchanged as per store policy. All disputes are subject to {company.city} jurisdiction.
+          </p>
+        </div>
+        <AuthorisedSignatory />
       </div>
 
       <div className="mt-4 flex items-end justify-between border-t border-ink-200 pt-3">

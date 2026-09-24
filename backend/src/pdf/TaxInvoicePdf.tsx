@@ -2,6 +2,7 @@ import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/render
 import { company } from "../config/company";
 import { UQC_CODES } from "../config/gst";
 import { InvoiceBarcode, logoBuffer } from "./InvoicePdf";
+import { SignatoryBlock } from "./SignatoryBlock";
 
 // GST tax invoice / credit note layout carrying every particular CGST Rule 46
 // (invoice) and Rule 53 (credit note) ask for: supplier and buyer GSTIN,
@@ -118,8 +119,6 @@ const s = StyleSheet.create({
   paymentItem: { flexDirection: "row", alignItems: "center", marginRight: 14 },
   checkbox: { width: 9, height: 9, borderWidth: 1, borderColor: BRAND, marginRight: 3, textAlign: "center", fontSize: 7 },
   signRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: 14 },
-  signBox: { width: 170, alignItems: "center" },
-  signLine: { borderTopWidth: 0.5, borderTopColor: MUTED, width: "100%", marginTop: 26, paddingTop: 3, textAlign: "center" },
 });
 
 export function TaxInvoicePdf({ doc }: { doc: TaxDocPdfData }) {
@@ -327,10 +326,7 @@ export function TaxInvoicePdf({ doc }: { doc: TaxDocPdfData }) {
             </Text>
             <Text style={s.note}>Units: {Object.entries(UQC_CODES).filter(([code]) => doc.items.some((i) => i.uqc === code)).map(([code, label]) => `${code} = ${label}`).join(", ")}</Text>
           </View>
-          <View style={s.signBox}>
-            <Text style={s.small}>For {doc.supplier.legalName}</Text>
-            <Text style={s.signLine}>Authorised Signatory</Text>
-          </View>
+          <SignatoryBlock legalName={doc.supplier.legalName} />
         </View>
 
         <View style={{ marginTop: 14, alignItems: "flex-end" }} wrap={false}>

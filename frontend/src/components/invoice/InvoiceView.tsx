@@ -2,6 +2,7 @@ import Image from "next/image";
 import { company } from "@/config/company";
 import { InvoiceBarcode } from "./InvoiceBarcode";
 import { TaxDocumentView } from "./TaxDocumentView";
+import { AuthorisedSignatory } from "./AuthorisedSignatory";
 import type { Invoice } from "@/types/invoice";
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
@@ -152,11 +153,15 @@ export function InvoiceView({ invoice }: { invoice: Invoice }) {
         ))}
       </div>
 
-      <p className="mt-4 text-xs text-ink-500">This is a computer generated invoice and does not require signature.</p>
+      <p className="mt-4 text-xs text-ink-500">This is a computer generated invoice.</p>
       <p className="mt-1 text-xs text-ink-500">
         Goods once sold will only be exchanged as per store policy. All disputes are subject to {company.city}{" "}
         jurisdiction.
       </p>
+
+      <div className="mt-4 flex justify-end">
+        <AuthorisedSignatory />
+      </div>
 
       <div className="mt-6 flex items-end justify-between border-t border-ink-200 pt-3">
         <div className="text-xs text-ink-500">
