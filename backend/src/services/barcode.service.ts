@@ -28,6 +28,40 @@ export function generateBarcodePng(ean13: string): Buffer {
   return canvas.toBuffer("image/png");
 }
 
+// Print-ready label. Phone cameras read a barcode by counting pixels per bar, so
+// on a small pack the size it is PRINTED at decides how fast it scans. The GS1
+// standard minimum is 80% of the nominal EAN-13 (bar width 0.264 mm); 100% is
+// recommended. 4 px per bar at 300 dpi is 0.339 mm — about 103% — with whole
+// pixels per bar (no blurry anti-aliased edges) and the required quiet zones.
+const PRINT_DPI = 300;
+const PRINT_MODULE_PX = 4;
+const PRINT_OPTIONS = {
+  format: "EAN13" as const,
+  lineColor: "#000000", // pure black on pure white: contrast is what cameras need most
+  background: "#ffffff",
+  width: PRINT_MODULE_PX,
+  height: 260, // ≈ 22 mm of bars at 300 dpi (nominal is 22.85 mm)
+  displayValue: true,
+  fontSize: 44,
+  textMargin: 6,
+  marginTop: 24,
+  marginBottom: 24,
+  marginLeft: 8, // JsBarcode already leaves the 11+ module left quiet zone for the first digit
+  marginRight: 7 * PRINT_MODULE_PX + 8, // right quiet zone: at least 7 bars wide
+};
+
+/**
+ * A 300 dpi PNG whose pixel size is the real print size (≈ 40 × 30 mm), with
+ * the dpi saved in the file so label software prints it at 100% instead of
+ * scaling it down. Never persisted — generated on demand like the preview.
+ */
+export function generatePrintBarcodePng(ean13: string): Buffer {
+  assertValid(ean13);
+  const canvas = createCanvas(1, 1); // JsBarcode resizes it to fit
+  JsBarcode(canvas, ean13, PRINT_OPTIONS);
+  return canvas.toBuffer("image/png", { resolution: PRINT_DPI });
+}
+
 /** Renders an EAN-13 barcode as an SVG string, generated on demand (never persisted). */
 export function generateBarcodeSvg(ean13: string): string {
   assertValid(ean13);

@@ -21,6 +21,17 @@ const withPWA = withPWAInit({
   extendDefaultRuntimeCaching: true,
   workboxOptions: {
     runtimeCaching: [
+      // The barcode decoder (public/wasm, ~1 MB). Its file name carries its hash, so a
+      // cached copy is never stale — keep it forever so scanning works offline.
+      {
+        urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/wasm/"),
+        handler: "CacheFirst",
+        options: {
+          cacheName: "retake-wasm",
+          expiration: { maxEntries: 4 },
+          cacheableResponse: { statuses: [0, 200] },
+        },
+      },
       // Auth and billing/cart calls touch live stock counts, session state,
       // and atomic invoice numbering — must always hit the network, never a
       // stale cache. (The billing page also skips these calls outright while

@@ -10,7 +10,7 @@ export const company = {
   pincode: "816101",
   country: "India",
   contactNumber: "+91 8506933428",
-  email: "info@devaditya.dev",
+  email: "retake@devaditya.dev",
   gstin: "20DQZPG0668A1Z0",
   // GST state code of the registration — must match the GSTIN's first two
   // digits (checked on startup). Decides CGST+SGST vs IGST on every bill.

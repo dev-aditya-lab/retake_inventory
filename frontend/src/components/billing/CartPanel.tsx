@@ -19,6 +19,7 @@ import { formatCurrency } from "@/lib/format";
 import { gstinStateCode, looksLikeGstin } from "@/lib/gstCalc";
 import { B2C_FULL_DETAILS_THRESHOLD, SUPPLIER_STATE_CODE } from "@/config/gst";
 import type { CartData, CompletedSale, PaymentMethod } from "@/types/cart";
+import type { Product } from "@/types/product";
 import { PAYMENT_METHODS } from "@/types/cart";
 
 /** What a cart line needs to show: its price, its total and — on GST bills — its rate. */
@@ -67,6 +68,16 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
     }
   }
 
+  // Picked from the typed-search list (a barcode that wouldn't scan): add the product directly.
+  async function handlePickProduct(product: Product) {
+    setScanError(null);
+    try {
+      await addItem({ id: cart.id, productId: product._id, quantity: 1 }).unwrap();
+    } catch (err) {
+      setScanError(getApiErrorMessage(err, `Could not add "${product.name}"`));
+    }
+  }
+
   async function handleCheckout() {
     setCheckoutError(null);
     try {
@@ -89,7 +100,11 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <ScannerInput onScan={handleScan} placeholder="Scan or type a product barcode…" />
+        <ScannerInput
+          onScan={handleScan}
+          onPickProduct={handlePickProduct}
+          placeholder="Scan a barcode, or type a name / last digits…"
+        />
         {scanError && <p className="mt-2 text-sm text-danger">{scanError}</p>}
       </div>
 

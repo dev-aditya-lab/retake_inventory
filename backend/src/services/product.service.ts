@@ -2,7 +2,7 @@ import { Product, type ProductDoc } from "../models/Product.model";
 import { StockMovement } from "../models/StockMovement.model";
 import { buildEan12, computeEan13CheckDigit, isValidEan13 } from "../utils/barcode";
 import { buildSku } from "../utils/sku";
-import { escapeRegex } from "../utils/regex";
+import { buildProductSearchFilter } from "../utils/productSearch";
 import { ApiError } from "../utils/ApiError";
 import { isDuplicateKeyError } from "../utils/mongoErrors";
 import { DEFAULT_VARIANT, type ProductType } from "../config/barcodeScheme";
@@ -103,14 +103,7 @@ export async function listProducts(filters: ProductListFilters) {
   const status = filters.status ?? "active";
   if (status !== "all") query.isActive = status === "active";
 
-  if (filters.search) {
-    const pattern = escapeRegex(filters.search);
-    query.$or = [
-      { name: { $regex: pattern, $options: "i" } },
-      { sku: { $regex: pattern, $options: "i" } },
-      { ean13: filters.search },
-    ];
-  }
+  if (filters.search) Object.assign(query, buildProductSearchFilter(filters.search));
   if (filters.category) query.category = filters.category;
   if (filters.type) query.type = filters.type;
   if (filters.lowStockOnly) {

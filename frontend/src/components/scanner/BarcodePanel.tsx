@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { productBarcodePath } from "@/lib/redux/features/products/productsApi";
 import { authenticatedFetch } from "@/lib/authenticatedFetch";
 import { downloadBlob } from "@/lib/downloadFile";
@@ -35,12 +35,12 @@ export function BarcodePanel({ productId, sku, ean13 }: { productId: string; sku
     };
   }, [productId]);
 
-  async function handleDownload(format: "png" | "svg") {
+  async function handleDownload(format: "png" | "svg", size: "preview" | "print" = "preview") {
     setDownloadError(null);
     try {
-      const res = await authenticatedFetch(productBarcodePath(productId, format));
+      const res = await authenticatedFetch(productBarcodePath(productId, format, size));
       if (!res.ok) throw new Error("Download failed");
-      downloadBlob(await res.blob(), `${sku}-barcode.${format}`);
+      downloadBlob(await res.blob(), size === "print" ? `${sku}-barcode-print-300dpi.png` : `${sku}-barcode.${format}`);
     } catch {
       setDownloadError("Could not download the barcode. Please try again.");
     }
@@ -61,6 +61,19 @@ export function BarcodePanel({ productId, sku, ean13 }: { productId: string; sku
         )}
       </div>
       {downloadError && <p className="mt-2 text-sm text-danger">{downloadError}</p>}
+      <button
+        type="button"
+        onClick={() => handleDownload("png", "print")}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+      >
+        <Printer size={16} aria-hidden />
+        Print-ready label (300 dpi)
+      </button>
+      <p className="mt-2 text-xs text-muted">
+        Print it at 100% size — about 40 × 30 mm — in pure black on matte white, not shrunk to fit. Phone cameras read a
+        barcode by counting pixels per bar, so a small print is the most common reason a pack won&apos;t scan. Below about
+        30 mm wide it gets unreliable.
+      </p>
       <div className="mt-3 flex gap-2">
         <button
           type="button"

@@ -10,8 +10,8 @@ export interface DecodedBarcode {
 }
 
 /** Path builder for a product's on-demand-rendered barcode image — fetched via authenticatedFetch, not RTK Query (a Blob doesn't belong in serializable Redux state). */
-export function productBarcodePath(id: string, format: "png" | "svg" = "png"): string {
-  return `/api/products/${id}/barcode?format=${format}`;
+export function productBarcodePath(id: string, format: "png" | "svg" = "png", size: "preview" | "print" = "preview"): string {
+  return `/api/products/${id}/barcode?format=${format}${size === "print" ? "&size=print" : ""}`;
 }
 
 export type ProductStatusFilter = "active" | "inactive" | "all";

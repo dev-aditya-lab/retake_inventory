@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import * as productService from "../services/product.service";
 import * as catalogCodeService from "../services/catalogCode.service";
-import { generateBarcodePng, generateBarcodeSvg } from "../services/barcode.service";
+import { generateBarcodePng, generateBarcodeSvg, generatePrintBarcodePng } from "../services/barcode.service";
 import * as exportService from "../services/export.service";
 import * as importService from "../services/import.service";
 import { ApiError } from "../utils/ApiError";
@@ -79,6 +79,13 @@ export async function getProductBarcodeImage(req: Request, res: Response): Promi
     const svg = generateBarcodeSvg(product.ean13);
     res.setHeader("Content-Disposition", `inline; filename="${product.sku}.svg"`);
     res.type("image/svg+xml").send(svg);
+    return;
+  }
+
+  // ?size=print — the 300 dpi print-ready label; otherwise the small on-screen preview.
+  if (req.query.size === "print") {
+    res.setHeader("Content-Disposition", `inline; filename="${product.sku}-print-300dpi.png"`);
+    res.type("image/png").send(generatePrintBarcodePng(product.ean13));
     return;
   }
 

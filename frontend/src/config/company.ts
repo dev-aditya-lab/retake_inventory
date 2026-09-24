@@ -11,7 +11,7 @@ export const company = {
   pincode: "816101",
   country: "India",
   contactNumber: "+91 8506933428",
-  email: "info@retake.devaditya.dev",
+  email: "retake@devaditya.dev",
   gstin: "20DQZPG0668A1Z0",
   website: "https://retake.devaditya.dev",
   logoUrl: "/brand/logo.png",

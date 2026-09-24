@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# barcode decoder copied from node_modules by scripts/copy-zxing-wasm.mjs
+/public/wasm/
