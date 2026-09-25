@@ -20,4 +20,17 @@ export const company = {
   // Number prefix of non-GST bills (RTKNG-260923-0001) — must match the backend's
   // config/company.ts. Public bill links use it to tell the two kinds apart.
   nonGstBillPrefix: "RTKNG",
+  // How customers pay. The big QR is shown to a customer at the counter; the small one and the
+  // details go on bills with money still owing. Keep the backend's config/company.ts in sync
+  // (the invoice PDFs use its copy, with the small QR at backend/src/assets/payment-qr.jpeg).
+  payment: {
+    accountName: "Aditya Ventures",
+    accountNumber: "033311501090716",
+    ifsc: "NESF0000333",
+    upiId: "gupta0854@slc",
+    bigQrUrl: "/big-paymentQR.jpeg",
+    smallQrUrl: "/small-paymentQR.jpeg",
+    // "when_due" = only on bills with a balance to pay; "always" = on every bill.
+    showOnBills: "when_due" as "when_due" | "always",
+  },
 } as const;

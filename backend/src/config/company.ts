@@ -26,4 +26,14 @@ export const company = {
   // 16-character GST limit doesn't apply. Keep the frontend's copy in sync.
   nonGstBillPrefix: "RTKNG",
   countryCode: "890", // EAN-13 country prefix used in the barcode scheme
+  // How customers pay. Printed on bills with money still owing (invoice PDFs), next to the
+  // payment QR at src/assets/payment-qr.jpeg. Keep the frontend's copy in sync.
+  payment: {
+    accountName: "Aditya Ventures",
+    accountNumber: "033311501090716",
+    ifsc: "NESF0000333",
+    upiId: "gupta0854@slc",
+    // "when_due" = only on bills with a balance to pay; "always" = on every bill.
+    showOnBills: "when_due" as "when_due" | "always",
+  },
 } as const;

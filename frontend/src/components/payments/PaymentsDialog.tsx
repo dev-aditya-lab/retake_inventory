@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { CheckCircle2, Trash2 } from "lucide-react";
+import { CheckCircle2, QrCode, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
+import { PaymentQrDialog } from "./PaymentQr";
 import {
   useDeleteInvoicePaymentMutation,
   useGetInvoiceQuery,
@@ -84,6 +85,7 @@ function PaymentsBody({ target, isAdmin, onClose }: { target: PaymentsTarget; is
   const [note, setNote] = useState("");
   const [dueInput, setDueInput] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
   if (query.isLoading || !bill || !payment) {
@@ -293,7 +295,19 @@ function PaymentsBody({ target, isAdmin, onClose }: { target: PaymentsTarget; is
           </label>
 
           <div>
-            <p className="mb-1.5 text-sm font-medium text-foreground">How</p>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-foreground">How</p>
+              {effectiveMode === "payment" && (
+                <button
+                  type="button"
+                  onClick={() => setShowQr(true)}
+                  className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-ink-100"
+                >
+                  <QrCode size={14} aria-hidden />
+                  Show QR
+                </button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2">
               {PAYMENT_METHODS.map((m) => (
                 <button
@@ -364,6 +378,8 @@ function PaymentsBody({ target, isAdmin, onClose }: { target: PaymentsTarget; is
       <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-ink-100">
         Done
       </button>
+
+      <PaymentQrDialog open={showQr} onClose={() => setShowQr(false)} amount={Number(amountText) > 0 ? Number(amountText) : limit > 0 ? limit : undefined} />
     </div>
   );
 }

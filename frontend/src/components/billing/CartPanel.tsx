@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Minus, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Minus, Plus, QrCode, Trash2 } from "lucide-react";
 import { ScannerInput } from "@/components/scanner/ScannerInput";
 import { PlaceOfSupplySelect } from "@/components/gst/PlaceOfSupplySelect";
 import { BuyerBadge } from "@/components/gst/BuyerBadge";
+import { PaymentQrDialog } from "@/components/payments/PaymentQr";
 import {
   useAddCartItemMutation,
   useUpdateCartItemMutation,
@@ -540,6 +541,7 @@ function PaymentFields({
   }) => void;
 }) {
   const [otherCharges, setOtherCharges] = useState(String(cart.otherCharges || ""));
+  const [showQr, setShowQr] = useState(false);
   const inclusive = cart.isB2b !== true;
   const chargesLabel = gstApplicable
     ? `Other charges — packing/delivery (${inclusive ? "incl." : "excl."} GST, ₹)`
@@ -611,7 +613,17 @@ function PaymentFields({
 
       {handingOverNow && (
         <div className="mt-3">
-          <p className="mb-1.5 text-sm font-medium text-foreground">Paid by</p>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-foreground">Paid by</p>
+            <button
+              type="button"
+              onClick={() => setShowQr(true)}
+              className="flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground hover:bg-ink-100"
+            >
+              <QrCode size={14} aria-hidden />
+              Show QR
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {PAYMENT_METHODS.map((m) => (
               <button
@@ -630,6 +642,8 @@ function PaymentFields({
           </div>
         </div>
       )}
+
+      <PaymentQrDialog open={showQr} onClose={() => setShowQr(false)} amount={payment && payment.amountReceived > 0 ? payment.amountReceived : undefined} />
 
       {balanceDue > 0 && (
         <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3">
