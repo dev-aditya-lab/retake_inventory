@@ -11,6 +11,10 @@ interface UpdateCartInput {
   gst?: CartGst;
   otherCharges?: number;
   paymentMethod?: PaymentMethod;
+  /** Money handed over now; null = back to "paid in full". */
+  amountReceived?: number | null;
+  /** "YYYY-MM-DD"; null clears it. */
+  dueDate?: string | null;
   note?: string;
 }
 

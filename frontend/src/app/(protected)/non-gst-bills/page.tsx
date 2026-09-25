@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ExternalLink, MessageCircle, Pencil, Search, Trash2 } from "lucide-react";
+import { ExternalLink, MessageCircle, Pencil, Search, Trash2, Wallet } from "lucide-react";
 import { useListNonGstBillsQuery } from "@/lib/redux/features/nonGstBills/nonGstBillsApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -11,13 +11,13 @@ import { ExportButtons } from "@/components/ExportButtons";
 import { Pagination } from "@/components/ui/Pagination";
 import { SendWhatsappDialog } from "@/components/sales/SendWhatsappDialog";
 import { CancelNonGstBillDialog } from "@/components/sales/CancelNonGstBillDialog";
-import { formatCurrency, formatDateTime, localDayBoundaryIso } from "@/lib/format";
-import { PAYMENT_METHODS } from "@/types/cart";
+import { PaymentsDialog, type PaymentsTarget } from "@/components/payments/PaymentsDialog";
+import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
+import { formatCurrency, formatDate, formatDateTime, localDayBoundaryIso } from "@/lib/format";
+import { PAYMENT_FILTER_OPTIONS, type PaymentFilter } from "@/types/payment";
 import type { NonGstBillListItem, NonGstBillStatus } from "@/types/nonGstBill";
 
 const PAGE_SIZE = 20;
-
-const paymentLabel = (value: string) => PAYMENT_METHODS.find((m) => m.value === value)?.label ?? value;
 
 export default function NonGstBillsPage() {
   return (
@@ -37,6 +37,7 @@ function NonGstBillsList() {
 
   const [searchInput, setSearchInput] = useState("");
   const [status, setStatus] = useState<NonGstBillStatus | "">("");
+  const [payment, setPayment] = useState<PaymentFilter | "">("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
@@ -44,11 +45,13 @@ function NonGstBillsList() {
 
   const [whatsappFor, setWhatsappFor] = useState<NonGstBillListItem | null>(null);
   const [cancelFor, setCancelFor] = useState<NonGstBillListItem | null>(null);
+  const [paymentsFor, setPaymentsFor] = useState<PaymentsTarget | null>(null);
 
   const { data, isFetching, isLoading, isError, refetch } = useListNonGstBillsQuery(
     {
       search: search || undefined,
       status: status || undefined,
+      payment: payment || undefined,
       from: from ? localDayBoundaryIso(from, "start") : undefined,
       to: to ? localDayBoundaryIso(to, "end") : undefined,
       page,
@@ -65,7 +68,7 @@ function NonGstBillsList() {
     };
   }
 
-  const hasFilters = !!(searchInput || status || from || to);
+  const hasFilters = !!(searchInput || status || payment || from || to);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -91,7 +94,32 @@ function NonGstBillsList() {
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+      {data && data.dues.dueCount > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+          <span className="text-foreground">
+            <span className="font-semibold">{formatCurrency(data.dues.dueAmount)}</span> still to collect from {data.dues.dueCount} bill
+            {data.dues.dueCount === 1 ? "" : "s"}
+            {data.dues.overdueCount > 0 && (
+              <span className="font-medium text-chilli-700">
+                {" "}
+                · {formatCurrency(data.dues.overdueAmount)} overdue ({data.dues.overdueCount})
+              </span>
+            )}
+          </span>
+          <span className="flex gap-3 text-xs font-medium">
+            <button type="button" onClick={() => withPageReset(setPayment)("due")} className="text-primary underline">
+              Show what&apos;s due
+            </button>
+            {data.dues.overdueCount > 0 && (
+              <button type="button" onClick={() => withPageReset(setPayment)("overdue")} className="text-primary underline">
+                Show overdue
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto]">
         <div className="relative col-span-2 sm:col-span-1">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
@@ -107,11 +135,24 @@ function NonGstBillsList() {
           value={status}
           onChange={(e) => withPageReset(setStatus)(e.target.value as NonGstBillStatus | "")}
           aria-label="Status"
-          className="input col-span-2 sm:col-span-1"
+          className="input"
         >
           <option value="">All bills</option>
-          <option value="paid">Paid</option>
+          {/* "paid" here means a normal sale, not that the money has come in — that's the payment filter beside it. */}
+          <option value="paid">Active</option>
           <option value="void">Cancelled</option>
+        </select>
+        <select
+          value={payment}
+          onChange={(e) => withPageReset(setPayment)(e.target.value as PaymentFilter | "")}
+          aria-label="Payment"
+          className="input"
+        >
+          {PAYMENT_FILTER_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
         <input
           type="date"
@@ -136,6 +177,7 @@ function NonGstBillsList() {
           onClick={() => {
             setSearchInput("");
             setStatus("");
+            setPayment("");
             setFrom("");
             setTo("");
             setPage(1);
@@ -171,7 +213,13 @@ function NonGstBillsList() {
       {data && data.items.length > 0 && (
         <ul className={`mt-4 flex flex-col gap-2 ${isFetching ? "opacity-60" : ""}`}>
           {data.items.map((bill) => (
-            <BillRow key={bill._id} bill={bill} onWhatsapp={() => setWhatsappFor(bill)} onCancel={() => setCancelFor(bill)} />
+            <BillRow
+              key={bill._id}
+              bill={bill}
+              onWhatsapp={() => setWhatsappFor(bill)}
+              onCancel={() => setCancelFor(bill)}
+              onPayments={() => setPaymentsFor({ kind: "non_gst", number: bill.billNumber })}
+            />
           ))}
         </ul>
       )}
@@ -184,6 +232,7 @@ function NonGstBillsList() {
         onClose={() => setWhatsappFor(null)}
       />
       <CancelNonGstBillDialog bill={cancelFor} onClose={() => setCancelFor(null)} />
+      <PaymentsDialog target={paymentsFor} isAdmin onClose={() => setPaymentsFor(null)} />
     </div>
   );
 }
@@ -192,10 +241,12 @@ function BillRow({
   bill,
   onWhatsapp,
   onCancel,
+  onPayments,
 }: {
   bill: NonGstBillListItem;
   onWhatsapp: () => void;
   onCancel: () => void;
+  onPayments: () => void;
 }) {
   const isCancelled = bill.status === "void";
 
@@ -214,14 +265,20 @@ function BillRow({
             {bill.priceList === "b2b" && (
               <span className="rounded-full bg-leaf-100 px-2 py-0.5 text-xs font-medium text-leaf-700">B2B</span>
             )}
+            <PaymentStatusBadge payment={bill.payment} cancelled={isCancelled} />
           </p>
           <p className="mt-0.5 truncate text-sm text-foreground">
             {bill.customer.name}
             {bill.customer.phone && <span className="text-muted"> · {bill.customer.phone}</span>}
           </p>
           <p className="mt-0.5 text-xs text-muted">
-            {formatDateTime(bill.billingDate)} · {bill.itemCount} item{bill.itemCount === 1 ? "" : "s"} ·{" "}
-            {paymentLabel(bill.paymentMethod)}
+            {formatDateTime(bill.billingDate)} · {bill.itemCount} item{bill.itemCount === 1 ? "" : "s"}
+            {bill.payment.balanceDue > 0 && bill.payment.dueDate && (
+              <span className={bill.payment.overdue ? "font-medium text-chilli-700" : ""}>
+                {" "}
+                · due {formatDate(bill.payment.dueDate)}
+              </span>
+            )}
           </p>
           {isCancelled && bill.cancelReason && <p className="mt-0.5 text-xs text-muted">Reason: {bill.cancelReason}</p>}
         </div>
@@ -239,6 +296,26 @@ function BillRow({
           <ExternalLink size={14} aria-hidden />
           View
         </Link>
+        {(bill.payment.balanceDue > 0 || bill.payment.refundDue > 0) && (
+          <button
+            type="button"
+            onClick={onPayments}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground"
+          >
+            <Wallet size={14} aria-hidden />
+            {bill.payment.refundDue > 0 ? "Refund" : "Record payment"}
+          </button>
+        )}
+        {bill.payment.balanceDue === 0 && bill.payment.refundDue === 0 && (bill.payment.amountPaid > 0 || !isCancelled) && (
+          <button
+            type="button"
+            onClick={onPayments}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-ink-100"
+          >
+            <Wallet size={14} aria-hidden />
+            Payments
+          </button>
+        )}
         {!isCancelled && (
           <>
             <button

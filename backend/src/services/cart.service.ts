@@ -5,6 +5,8 @@ import { ApiError } from "../utils/ApiError";
 import { company } from "../config/company";
 import { gstStateName } from "../config/gst";
 import { computeInvoiceTax, type PriceMode } from "../utils/gstCalc";
+import { round2 } from "../utils/gst";
+import { istDayKey } from "../utils/istDate";
 import { computeNonGstTotals, nonGstPriceFor, priceListLabel } from "../utils/nonGstBill";
 import type { PriceList } from "../models/NonGstBill.model";
 import { lineFromProduct, productGstProblems, resolveBuyer, type BuyerContext } from "./gstDocument.service";
@@ -91,12 +93,26 @@ export interface UpdateCartInput {
   gst?: CartGst;
   otherCharges?: number;
   paymentMethod?: PaymentMethod;
+  /** null = back to "paid in full". */
+  amountReceived?: number | null;
+  /** null = no due date. */
+  dueDate?: string | null;
   note?: string;
 }
 
 export async function updateCartDetails(userId: string, id: string, updates: UpdateCartInput): Promise<CartData> {
   const cart = await getCart(userId, id);
-  Object.assign(cart, updates);
+  const { amountReceived, dueDate, ...rest } = updates;
+  Object.assign(cart, rest);
+  // null means "clear it" — the cart stores the field as absent, not as null.
+  if (amountReceived !== undefined) {
+    if (amountReceived === null) delete cart.amountReceived;
+    else cart.amountReceived = amountReceived;
+  }
+  if (dueDate !== undefined) {
+    if (dueDate === null) delete cart.dueDate;
+    else cart.dueDate = dueDate;
+  }
   await saveCart(cart);
   return cart;
 }
@@ -168,6 +184,30 @@ export async function discardCart(userId: string, id: string): Promise<void> {
 }
 
 /**
+ * The counter's view of the payment side: what's being handed over now, what
+ * will be left owing, and anything that would stop checkout. Same rules as the
+ * bill's opening payment (see buildOpeningPayment), so the screen never
+ * promises something checkout would refuse.
+ */
+function previewPayment(cart: CartData, grandTotal: number, problems: string[]) {
+  const total = round2(grandTotal);
+  const received = round2(cart.amountReceived ?? total);
+  const balanceDue = Math.max(0, round2(total - received));
+
+  if (total > 0) {
+    if (received > total + 0.005) problems.push(`The amount received (₹${received}) is more than the bill total (₹${total})`);
+    if (received > 0 && !cart.paymentMethod) problems.push("Choose how the money was paid");
+    if (balanceDue > 0 && cart.dueDate && cart.dueDate < istDayKey(new Date())) problems.push("The due date is in the past");
+  }
+
+  return {
+    amountReceived: received,
+    balanceDue,
+    dueDate: balanceDue > 0 ? (cart.dueDate ?? null) : null,
+  };
+}
+
+/**
  * What the bill will look like if checked out now: B2B or retail pricing,
  * place of supply, each line's price and tax, the totals, and anything that
  * would stop checkout (a bad GSTIN, a product missing its HSN/MRP…). Uses the
@@ -215,8 +255,11 @@ export async function previewCart(cart: CartData) {
     ? computeInvoiceTax({ lines, priceMode: buyer.priceMode, supplyType: buyer.supplyType, otherCharges: cart.otherCharges })
     : null;
 
+  const payment = previewPayment(cart, tax?.grandTotal ?? 0, problems);
+
   return {
     gstApplicable: true as const,
+    payment,
     buyerType: buyer.buyerType,
     priceMode: buyer.priceMode,
     placeOfSupply: buyer.placeOfSupply,
@@ -270,9 +313,11 @@ async function previewNonGstCart(cart: CartData) {
   }
 
   const totals = lines.length > 0 ? computeNonGstTotals(lines, cart.otherCharges) : null;
+  const payment = previewPayment(cart, totals?.grandTotal ?? 0, problems);
 
   return {
     gstApplicable: false as const,
+    payment,
     priceList,
     lines: totals?.lines.map((l) => ({ productId: l.product, unitPrice: l.unitPrice, total: l.total })) ?? [],
     otherCharges: totals?.otherCharges ?? 0,

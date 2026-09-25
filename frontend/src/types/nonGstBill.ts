@@ -1,4 +1,5 @@
 import type { InvoiceCustomer } from "./invoice";
+import type { PaymentEntry, PaymentSummary } from "./payment";
 
 /** paid = a normal sale; void = cancelled (stock returned, kept on record). */
 export type NonGstBillStatus = "paid" | "void";
@@ -27,7 +28,14 @@ export interface NonGstBill {
   subtotal: number;
   grandTotal: number;
   amountInWords: string;
-  paymentMethod: string;
+  /** Method of the first payment (old single "how was it paid" value). */
+  paymentMethod?: string;
+  /** Every payment and refund on the bill, oldest first. */
+  payments?: PaymentEntry[];
+  amountPaid?: number;
+  dueDate?: string;
+  /** Paid / balance due / status, worked out by the server. */
+  payment?: PaymentSummary;
   status: NonGstBillStatus;
   note?: string;
   createdBy: string;
@@ -50,7 +58,8 @@ export interface NonGstBillListItem {
   /** Total units across all lines. */
   itemCount: number;
   grandTotal: number;
-  paymentMethod: string;
+  paymentMethod?: string;
+  payment: PaymentSummary;
   status: NonGstBillStatus;
   whatsappSentAt?: string;
   editedAt?: string;

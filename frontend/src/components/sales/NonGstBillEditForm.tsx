@@ -5,7 +5,6 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { useUpdateNonGstBillMutation } from "@/lib/redux/features/nonGstBills/nonGstBillsApi";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatCurrency } from "@/lib/format";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/types/cart";
 import type { NonGstBill, PriceList } from "@/types/nonGstBill";
 import type { Product } from "@/types/product";
 import { AddProductPicker, Field } from "./billEditParts";
@@ -44,7 +43,6 @@ export function NonGstBillEditForm({ bill, onSaved }: { bill: NonGstBill; onSave
     })),
   );
   const [otherCharges, setOtherCharges] = useState(bill.otherCharges ? String(bill.otherCharges) : "");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(bill.paymentMethod as PaymentMethod);
   const [note, setNote] = useState(bill.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
@@ -126,7 +124,6 @@ export function NonGstBillEditForm({ bill, onSaved }: { bill: NonGstBill; onSave
           unitPrice: toNumber(line.unitPrice),
         })),
         otherCharges: charges,
-        paymentMethod,
         note: note.trim(),
       }).unwrap();
       onSaved();
@@ -267,7 +264,14 @@ export function NonGstBillEditForm({ bill, onSaved }: { bill: NonGstBill; onSave
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold text-foreground">Payment</h2>
+        <h2 className="text-sm font-semibold text-foreground">Charges &amp; note</h2>
+        {bill.payment && (
+          <p className="mt-1 rounded-md bg-surface px-3 py-2 text-xs text-muted">
+            Paid so far {formatCurrency(bill.payment.amountPaid)}
+            {bill.payment.balanceDue > 0 && ` · balance ${formatCurrency(bill.payment.balanceDue)}`}. Changing the bill re-works
+            the balance; record or fix payments from the bills list.
+          </p>
+        )}
         <Field label="Other charges — packing/delivery (₹)">
           <input
             type="number"
@@ -280,26 +284,6 @@ export function NonGstBillEditForm({ bill, onSaved }: { bill: NonGstBill; onSave
           />
         </Field>
 
-        <div className="mt-3">
-          <p className="mb-1.5 text-sm font-medium text-foreground">Payment method</p>
-          <div className="flex flex-wrap gap-2">
-            {PAYMENT_METHODS.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                aria-pressed={paymentMethod === m.value}
-                onClick={() => setPaymentMethod(m.value)}
-                className={`rounded-md border px-3 py-2 text-xs font-medium ${
-                  paymentMethod === m.value
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-foreground hover:bg-ink-100"
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <Field label="Note" className="mt-3">
           <textarea rows={2} value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className="input" />

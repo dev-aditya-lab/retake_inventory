@@ -8,6 +8,7 @@ import {
   useSendNonGstBillWhatsappMutation,
   useSendNonGstBillEmailMutation,
 } from "@/lib/redux/features/nonGstBills/nonGstBillsApi";
+import { formatCurrency, formatDate } from "@/lib/format";
 import type { CompletedSale } from "@/types/cart";
 
 type SendStatus = "idle" | "sent" | "error";
@@ -24,6 +25,7 @@ function summarise(sale: CompletedSale) {
       itemCount: invoice.items.length,
       grandTotal: invoice.grandTotal,
       amountInWords: invoice.amountInWords,
+      payment: invoice.payment,
     };
   }
   const { bill } = sale;
@@ -35,6 +37,7 @@ function summarise(sale: CompletedSale) {
     itemCount: bill.items.length,
     grandTotal: bill.grandTotal,
     amountInWords: bill.amountInWords,
+    payment: bill.payment,
   };
 }
 
@@ -91,6 +94,19 @@ export function InvoiceSuccess({ sale, onNewSale }: { sale: CompletedSale; onNew
           <dt className="text-foreground">{doc.totalLabel}</dt>
           <dd className="text-foreground">₹{doc.grandTotal.toFixed(2)}</dd>
         </div>
+        {doc.payment && doc.payment.balanceDue > 0 && (
+          <>
+            <div className="flex justify-between">
+              <dt className="text-muted">Received now</dt>
+              <dd className="text-foreground">{formatCurrency(doc.payment.amountPaid)}</dd>
+            </div>
+            <div className="flex justify-between text-base font-semibold text-chilli-700">
+              <dt>Balance due</dt>
+              <dd>{formatCurrency(doc.payment.balanceDue)}</dd>
+            </div>
+            {doc.payment.dueDate && <p className="text-xs text-muted">To be paid by {formatDate(doc.payment.dueDate)}</p>}
+          </>
+        )}
       </dl>
       <p className="text-xs text-muted">{doc.amountInWords}</p>
 

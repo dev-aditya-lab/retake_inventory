@@ -2,10 +2,12 @@ import { z } from "zod";
 import { dateRangeQuerySchema } from "./report.validators";
 import { objectIdSchema, optionalEmailSchema, optionalGstinSchema, paginationQuerySchema } from "./common.validators";
 import { stateCodeSchema } from "./gst.validators";
+import { paymentFilterSchema } from "./payment.validators";
 
 export const listInvoicesQuerySchema = paginationQuerySchema.extend(dateRangeQuerySchema.shape).extend({
   search: z.string().trim().max(100).optional(),
   status: z.enum(["paid", "void", "credited"]).optional(),
+  payment: paymentFilterSchema.optional(),
   customer: objectIdSchema.optional(),
 });
 
@@ -33,7 +35,6 @@ export const updateInvoiceSchema = z.object({
     .min(1, "An invoice needs at least one item")
     .max(200),
   otherCharges: z.number().min(0),
-  paymentMethod: z.enum(["cash", "cheque", "upi", "bank_transfer"]),
   note: z.string().trim().max(500).optional(),
 });
 

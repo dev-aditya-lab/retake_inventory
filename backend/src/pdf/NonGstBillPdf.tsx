@@ -2,6 +2,7 @@ import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/render
 import { company } from "../config/company";
 import { InvoiceBarcode, logoBuffer } from "./InvoicePdf";
 import { SignatoryBlock } from "./SignatoryBlock";
+import { PaymentBlock, type PdfPayment } from "./PaymentBlock";
 
 export interface NonGstBillPdfData {
   billNumber: string;
@@ -13,19 +14,13 @@ export interface NonGstBillPdfData {
   subtotal: number;
   grandTotal: number;
   amountInWords: string;
-  paymentMethod: string;
+  /** What has been paid and what is still owed. */
+  payment?: PdfPayment;
   /** Cancelled bills still render (the customer's link keeps working) but are clearly marked. */
   cancelled?: boolean;
   /** CODE128 module pattern for the bill number ("1" = bar), drawn as vector bars. */
   barcodeModules: string;
 }
-
-const PAYMENT_METHODS: { value: string; label: string }[] = [
-  { value: "cash", label: "Cash" },
-  { value: "cheque", label: "Cheque" },
-  { value: "upi", label: "UPI" },
-  { value: "bank_transfer", label: "Bank Transfer" },
-];
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: "Helvetica", color: "#1a1817" },
@@ -70,17 +65,6 @@ const styles = StyleSheet.create({
     fontWeight: 700,
   },
   words: { fontSize: 9, fontStyle: "italic", marginTop: 8 },
-  paymentRow: { flexDirection: "row", marginTop: 10 },
-  paymentItem: { flexDirection: "row", alignItems: "center", marginRight: 16 },
-  checkbox: {
-    width: 10,
-    height: 10,
-    borderWidth: 1,
-    borderColor: "#c81e2a",
-    marginRight: 4,
-    textAlign: "center",
-    fontSize: 8,
-  },
   footerNote: { fontSize: 8, color: "#7c756f", marginTop: 12 },
   footerRow: {
     flexDirection: "row",
@@ -181,14 +165,7 @@ export function NonGstBillPdf({ bill }: { bill: NonGstBillPdfData }) {
 
         <Text style={styles.words}>Amount in words: {bill.amountInWords}</Text>
 
-        <View style={styles.paymentRow}>
-          {PAYMENT_METHODS.map((m) => (
-            <View key={m.value} style={styles.paymentItem}>
-              <Text style={styles.checkbox}>{bill.paymentMethod === m.value ? "X" : ""}</Text>
-              <Text>{m.label}</Text>
-            </View>
-          ))}
-        </View>
+        {bill.payment ? <PaymentBlock payment={bill.payment} /> : null}
 
         <Text style={styles.footerNote}>This is a computer generated bill. No GST is charged on it.</Text>
         <Text style={styles.footerNote}>

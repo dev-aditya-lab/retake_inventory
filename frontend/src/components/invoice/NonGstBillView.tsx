@@ -2,7 +2,7 @@ import Image from "next/image";
 import { company } from "@/config/company";
 import { InvoiceBarcode } from "./InvoiceBarcode";
 import { AuthorisedSignatory } from "./AuthorisedSignatory";
-import { PAYMENT_METHODS } from "@/types/cart";
+import { PaymentSummaryView } from "@/components/payments/PaymentSummaryView";
 import type { NonGstBill } from "@/types/nonGstBill";
 
 const money = (n: number) => n.toFixed(2);
@@ -102,20 +102,7 @@ export function NonGstBillView({ bill }: { bill: NonGstBill }) {
 
       <p className="mt-3 italic text-ink-700">Amount in words: {bill.amountInWords}</p>
 
-      <div className="mt-3 flex flex-wrap gap-4 text-xs">
-        {PAYMENT_METHODS.map((m) => (
-          <span key={m.value} className="flex items-center gap-1.5">
-            <span
-              className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
-                bill.paymentMethod === m.value ? "border-chilli-600 bg-chilli-600 text-white" : "border-ink-300"
-              }`}
-            >
-              {bill.paymentMethod === m.value && "✓"}
-            </span>
-            {m.label}
-          </span>
-        ))}
-      </div>
+      {bill.payment && <PaymentSummaryView payment={bill.payment} entries={bill.payments ?? []} cancelled={bill.status === "void"} />}
 
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="text-xs text-ink-500">

@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as nonGstBillController from "../controllers/nonGstBill.controller";
 import { validateBody } from "../middleware/validate";
 import { updateNonGstBillSchema } from "../validators/nonGstBill.validators";
+import { dueDateSchema, recordPaymentSchema } from "../validators/payment.validators";
 import { authenticate, requireRole } from "../middleware/auth";
 
 export const nonGstBillRouter = Router();
@@ -26,6 +27,23 @@ nonGstBillRouter.patch(
   nonGstBillController.updateBill,
 );
 nonGstBillRouter.post("/:billNumber/cancel", authenticate, requireRole("admin"), nonGstBillController.cancelBill);
+
+// Money received against a bill (advance, part-payments, the rest, or a refund) — same rules as invoices.
+nonGstBillRouter.post(
+  "/:billNumber/payments",
+  authenticate,
+  requireRole("admin", "sales"),
+  validateBody(recordPaymentSchema),
+  nonGstBillController.recordPayment,
+);
+nonGstBillRouter.delete("/:billNumber/payments/:paymentId", authenticate, requireRole("admin"), nonGstBillController.deletePayment);
+nonGstBillRouter.patch(
+  "/:billNumber/due-date",
+  authenticate,
+  requireRole("admin", "sales"),
+  validateBody(dueDateSchema),
+  nonGstBillController.setDueDate,
+);
 
 // Sending is a billable Meta API call, so it's auth-gated; the controller adds a short per-bill cooldown.
 nonGstBillRouter.post("/:billNumber/send-whatsapp", authenticate, requireRole("admin", "sales"), nonGstBillController.sendWhatsapp);

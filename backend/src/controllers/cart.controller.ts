@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import * as cartService from "../services/cart.service";
 import * as invoiceService from "../services/invoice.service";
 import { ApiError } from "../utils/ApiError";
+import { summarizePayment } from "../utils/payments";
 
 function requireUserId(req: Request): string {
   if (!req.user) throw ApiError.unauthorized();
@@ -55,5 +56,5 @@ export async function removeItem(req: Request, res: Response): Promise<void> {
 
 export async function checkout(req: Request, res: Response): Promise<void> {
   const invoice = await invoiceService.checkout(requireUserId(req), req.params.id as string);
-  res.status(201).json({ success: true, data: invoice });
+  res.status(201).json({ success: true, data: invoice && { ...invoice.toJSON(), payment: summarizePayment(invoice) } });
 }

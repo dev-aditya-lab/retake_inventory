@@ -1,4 +1,5 @@
 import { Schema, model, Types, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { PAYMENT_METHODS, paymentFields } from "./paymentSchemas";
 
 // A bill with no GST on it. Deliberately its own collection, number series and
 // code path: it must never reach GSTR-1 / GSTR-3B, credit notes, the GST filing
@@ -45,7 +46,9 @@ const nonGstBillSchema = new Schema(
     grandTotal: { type: Number, required: true, min: 0 },
     amountInWords: { type: String, required: true },
 
-    paymentMethod: { type: String, enum: ["cash", "cheque", "upi", "bank_transfer"], required: true },
+    // The method of the first payment (kept for exports and old readers); see paymentSchemas.ts.
+    paymentMethod: { type: String, enum: PAYMENT_METHODS },
+    ...paymentFields,
     status: { type: String, enum: NON_GST_BILL_STATUSES, default: "paid" },
     note: { type: String, default: "" },
 

@@ -2,14 +2,9 @@ import Image from "next/image";
 import { company } from "@/config/company";
 import { InvoiceBarcode } from "./InvoiceBarcode";
 import { AuthorisedSignatory } from "./AuthorisedSignatory";
+import { PaymentSummaryView } from "@/components/payments/PaymentSummaryView";
+import type { PaymentEntry, PaymentSummary } from "@/types/payment";
 import type { GstDocumentFields, InvoiceCustomer, InvoiceItem, TaxAmounts } from "@/types/invoice";
-
-const PAYMENT_METHODS: { value: string; label: string }[] = [
-  { value: "cash", label: "Cash" },
-  { value: "cheque", label: "Cheque" },
-  { value: "upi", label: "UPI" },
-  { value: "bank_transfer", label: "Bank Transfer" },
-];
 
 const money = (n: number | undefined | null) => (n ?? 0).toFixed(2);
 const taxOf = (a: TaxAmounts) => (a.cgst ?? 0) + (a.sgst ?? 0) + (a.igst ?? 0);
@@ -36,14 +31,15 @@ export function TaxDocumentView({
   title,
   reference,
   reason,
-  paymentMethod,
+  payment,
   cancelled,
 }: {
   doc: TaxDocument;
   title: "TAX INVOICE" | "CREDIT NOTE";
   reference?: { number: string; date: string };
   reason?: string;
-  paymentMethod?: string;
+  /** Invoices only: what has been paid and what's still owing. Credit notes have none. */
+  payment?: { summary: PaymentSummary; entries: PaymentEntry[] };
   cancelled?: boolean;
 }) {
   const intra = doc.supplyType !== "inter";
@@ -235,22 +231,7 @@ export function TaxDocumentView({
       <p className="mt-3 italic text-ink-700">Amount in words: {doc.amountInWords}</p>
       {inclusive && <p className="mt-1 text-xs text-ink-500">Prices shown are MRP, inclusive of GST.</p>}
 
-      {paymentMethod && (
-        <div className="mt-3 flex flex-wrap gap-4 text-xs">
-          {PAYMENT_METHODS.map((m) => (
-            <span key={m.value} className="flex items-center gap-1.5">
-              <span
-                className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
-                  paymentMethod === m.value ? "border-chilli-600 bg-chilli-600 text-white" : "border-ink-300"
-                }`}
-              >
-                {paymentMethod === m.value && "✓"}
-              </span>
-              {m.label}
-            </span>
-          ))}
-        </div>
-      )}
+      {payment && <PaymentSummaryView payment={payment.summary} entries={payment.entries} cancelled={cancelled} />}
 
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="text-xs text-ink-500">

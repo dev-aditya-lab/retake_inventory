@@ -4,12 +4,18 @@ import * as whatsappService from "../services/whatsapp.service";
 import * as emailService from "../services/email.service";
 import * as exportService from "../services/export.service";
 import { generateNonGstBillPdf } from "../services/pdf.service";
+import { nonGstPayments } from "../services/payment.service";
+import { summarizePayment } from "../utils/payments";
 import { ApiError } from "../utils/ApiError";
 import { normalizeIndianPhone } from "../utils/phone";
 import { env } from "../config/env";
 import { redis } from "../config/redis";
 import type { ExportFormat } from "../services/export.service";
 import { cancelNonGstBillSchema, listNonGstBillsQuerySchema, sendNonGstWhatsappSchema } from "../validators/nonGstBill.validators";
+import type { z } from "zod";
+import type { recordPaymentSchema } from "../validators/payment.validators";
+
+type RecordPaymentBody = z.infer<typeof recordPaymentSchema>;
 
 // Blocks an accidental double-tap from sending the same bill twice.
 const WHATSAPP_RESEND_COOLDOWN_SECONDS = 30;
@@ -26,14 +32,15 @@ function billDownloadUrl(billNumber: string): string {
 
 export async function checkout(req: Request, res: Response): Promise<void> {
   const bill = await nonGstBillService.checkout(requireUserId(req), req.params.id as string);
-  res.status(201).json({ success: true, data: bill });
+  res.status(201).json({ success: true, data: bill && { ...bill.toJSON(), payment: summarizePayment(bill) } });
 }
 
 export async function listBills(req: Request, res: Response): Promise<void> {
-  const { search, status, from, to, page, limit } = listNonGstBillsQuerySchema.parse(req.query);
+  const { search, status, payment, from, to, page, limit } = listNonGstBillsQuerySchema.parse(req.query);
   const result = await nonGstBillService.listBills({
     search,
     status,
+    payment,
     from: from ? new Date(from) : undefined,
     // A bare date ("2026-09-22") means "through the end of that day".
     to: to ? (to.length === 10 ? new Date(`${to}T23:59:59.999`) : new Date(to)) : undefined,
@@ -43,9 +50,33 @@ export async function listBills(req: Request, res: Response): Promise<void> {
   res.json({ success: true, data: result });
 }
 
+/** A bill as the screens see it: payment = paid / balance due / status. */
+async function billDetail(billNumber: string) {
+  const bill = await nonGstBillService.getBillByNumber(billNumber);
+  return { ...bill.toJSON(), payment: summarizePayment(bill) };
+}
+
 export async function getBill(req: Request, res: Response): Promise<void> {
-  const bill = await nonGstBillService.getBillByNumber(req.params.billNumber as string);
-  res.json({ success: true, data: bill });
+  res.json({ success: true, data: await billDetail(req.params.billNumber as string) });
+}
+
+export async function recordPayment(req: Request, res: Response): Promise<void> {
+  const number = req.params.billNumber as string;
+  const { receivedAt, ...entry } = req.body as RecordPaymentBody;
+  await nonGstPayments.record(number, requireUserId(req), { ...entry, receivedAt: receivedAt ? new Date(receivedAt) : undefined });
+  res.status(201).json({ success: true, data: await billDetail(number) });
+}
+
+export async function deletePayment(req: Request, res: Response): Promise<void> {
+  const number = req.params.billNumber as string;
+  await nonGstPayments.remove(number, req.params.paymentId as string);
+  res.json({ success: true, data: await billDetail(number) });
+}
+
+export async function setDueDate(req: Request, res: Response): Promise<void> {
+  const number = req.params.billNumber as string;
+  await nonGstPayments.setDueDate(number, (req.body as { dueDate: string | null }).dueDate);
+  res.json({ success: true, data: await billDetail(number) });
 }
 
 export async function getBillPdf(req: Request, res: Response): Promise<void> {

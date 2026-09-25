@@ -39,6 +39,10 @@ export interface CartData {
   gst: CartGst;
   otherCharges: number;
   paymentMethod?: PaymentMethod;
+  /** Money handed over now (an advance or part-payment). Absent = paid in full. 0 = all on credit. */
+  amountReceived?: number;
+  /** "YYYY-MM-DD" the balance is expected by. Only meaningful when something is left to pay. */
+  dueDate?: string;
   note?: string;
   createdAt: string;
   updatedAt: string;

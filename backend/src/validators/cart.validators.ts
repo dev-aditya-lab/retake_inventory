@@ -24,6 +24,14 @@ export const updateCartSchema = z.object({
   gst: gstSchema.optional(),
   otherCharges: z.number().min(0).optional(),
   paymentMethod: z.enum(["cash", "cheque", "upi", "bank_transfer"]).optional(),
+  // Money handed over now; null puts it back to "paid in full".
+  amountReceived: z.number().min(0).max(100_000_000).nullable().optional(),
+  // The day the balance is expected by; null clears it.
+  dueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-10-15")
+    .nullable()
+    .optional(),
   note: z.string().optional(),
 });
 

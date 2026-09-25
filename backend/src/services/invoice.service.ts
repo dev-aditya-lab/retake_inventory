@@ -15,8 +15,9 @@ import { nextDocumentNumber } from "./documentNumber.service";
 import { buildGstDocument, lineFromProduct, resolveBuyer, type GstBillLine, type GstCustomerInput } from "./gstDocument.service";
 import { assertBillChangeable, isPeriodFiled } from "./gstFiling.service";
 import { GstFiling } from "../models/GstFiling.model";
-import type { PaymentMethod } from "../types/cart";
 import type { PriceMode } from "../utils/gstCalc";
+import { buildOpeningPayment, paymentFilterQuery, summarizePayment, type PaymentFilter } from "../utils/payments";
+import { dueSummary } from "./payment.service";
 
 export async function checkout(userId: string, cartId: string) {
   const cart = await cartService.getCart(userId, cartId);
@@ -26,7 +27,8 @@ export async function checkout(userId: string, cartId: string) {
   }
   if (cart.items.length === 0) throw ApiError.badRequest("Cart is empty");
   if (!cart.customer.name?.trim()) throw ApiError.badRequest("Customer name is required");
-  if (!cart.paymentMethod) throw ApiError.badRequest("Payment method is required");
+  // A bill left entirely on credit (nothing received) needs no payment method yet.
+  if (cart.amountReceived !== 0 && !cart.paymentMethod) throw ApiError.badRequest("Payment method is required");
 
   const customer = { ...cart.customer, name: cart.customer.name.trim() };
   const priceMode = cartService.cartPriceMode(cart);
@@ -54,6 +56,15 @@ export async function checkout(userId: string, cartId: string) {
       const lines = cart.items.map((item) => lineFromProduct(products.get(item.productId)!, item.quantity, buyer.priceMode));
       const { fields } = buildGstDocument({ customer, lines, otherCharges: cart.otherCharges, priceMode });
 
+      // What was handed over now (all of it, an advance, or nothing) — checked before a number is issued.
+      const opening = buildOpeningPayment({
+        total: fields.grandTotal,
+        amountReceived: cart.amountReceived,
+        method: cart.paymentMethod,
+        dueDay: cart.dueDate,
+        userId,
+      });
+
       const resultingQuantities = new Map<string, number>();
       for (const item of cart.items) {
         const product = products.get(item.productId)!;
@@ -70,7 +81,10 @@ export async function checkout(userId: string, cartId: string) {
             invoiceNumber,
             billingDate: new Date(),
             ...fields,
-            paymentMethod: cart.paymentMethod,
+            payments: opening.payments,
+            amountPaid: opening.amountPaid,
+            paymentMethod: opening.paymentMethod,
+            dueDate: opening.dueDate,
             note: cart.note,
             createdBy: userId,
           },
@@ -142,6 +156,8 @@ export async function getInvoiceByNumber(invoiceNumber: string) {
 export interface InvoiceListFilters {
   search?: string;
   status?: InvoiceStatus;
+  /** Only bills in this payment state (still owing, overdue, settled…). */
+  payment?: PaymentFilter;
   customerId?: string;
   from?: Date;
   to?: Date;
@@ -149,9 +165,10 @@ export interface InvoiceListFilters {
   limit: number;
 }
 
-export async function listInvoices({ search, status, customerId, from, to, page, limit }: InvoiceListFilters) {
+export async function listInvoices({ search, status, payment, customerId, from, to, page, limit }: InvoiceListFilters) {
   const query: Record<string, unknown> = {};
   if (status) query.status = status;
+  if (payment) Object.assign(query, paymentFilterQuery(payment));
   if (customerId) query.customerRef = customerId;
   if (from || to) {
     const billingDate: Record<string, Date> = {};
@@ -175,7 +192,7 @@ export async function listInvoices({ search, status, customerId, from, to, page,
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "invoiceNumber billingDate customer customerRef items.quantity grandTotal creditedTotal gstVersion buyerType priceMode paymentMethod status whatsappSentAt editedAt cancelledAt cancelReason",
+        "invoiceNumber billingDate customer customerRef items.quantity grandTotal creditedTotal gstVersion buyerType priceMode paymentMethod amountPaid dueDate status whatsappSentAt editedAt cancelledAt cancelReason",
       )
       .lean(),
     Invoice.countDocuments(query),
@@ -188,8 +205,11 @@ export async function listInvoices({ search, status, customerId, from, to, page,
   );
 
   return {
+    // Money still to collect across all bills (of this customer, if one is chosen) — not just this page.
+    dues: await dueSummary(Invoice, customerId ? { customerRef: new mongoose.Types.ObjectId(customerId) } : {}),
     items: invoices.map(({ items, ...invoice }) => ({
       ...invoice,
+      payment: summarizePayment(invoice),
       itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
       // Its month's GSTR-1 is filed: edits/deletes become credit notes.
       gstLocked: filed.has(gstPeriodOf(invoice.billingDate)),
@@ -209,7 +229,6 @@ export interface UpdateInvoiceInput {
   priceMode?: PriceMode;
   items: { product: string; quantity: number; unitPrice: number }[];
   otherCharges: number;
-  paymentMethod: PaymentMethod;
   note?: string;
 }
 
@@ -305,7 +324,6 @@ export async function updateInvoice(invoiceNumber: string, userId: string, input
       }
 
       invoice.set(fields);
-      invoice.paymentMethod = input.paymentMethod;
       invoice.note = input.note ?? "";
       invoice.editedAt = new Date();
       invoice.set("editedBy", userId);

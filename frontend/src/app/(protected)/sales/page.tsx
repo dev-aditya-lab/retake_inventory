@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ExternalLink, Lock, MessageCircle, Pencil, Search, Trash2, Undo2, X } from "lucide-react";
+import { ExternalLink, Lock, MessageCircle, Pencil, Search, Trash2, Undo2, Wallet, X } from "lucide-react";
 import { useListInvoicesQuery } from "@/lib/redux/features/invoices/invoicesApi";
 import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -13,13 +13,16 @@ import { Pagination } from "@/components/ui/Pagination";
 import { SendWhatsappDialog } from "@/components/sales/SendWhatsappDialog";
 import { CancelInvoiceDialog } from "@/components/sales/CancelInvoiceDialog";
 import { ReturnItemsDialog } from "@/components/sales/ReturnItemsDialog";
-import { formatCurrency, formatDateTime, localDayBoundaryIso } from "@/lib/format";
-import { PAYMENT_METHODS } from "@/types/cart";
+import { PaymentsDialog, type PaymentsTarget } from "@/components/payments/PaymentsDialog";
+import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
+import { formatCurrency, formatDate, formatDateTime, localDayBoundaryIso } from "@/lib/format";
+import { PAYMENT_FILTER_OPTIONS, type PaymentFilter } from "@/types/payment";
 import type { InvoiceListItem, InvoiceStatus } from "@/types/invoice";
 
 const PAGE_SIZE = 20;
 
-const paymentLabel = (value: string) => PAYMENT_METHODS.find((m) => m.value === value)?.label ?? value;
+const isPaymentFilter = (value: string | null): value is PaymentFilter =>
+  PAYMENT_FILTER_OPTIONS.some((option) => option.value !== "" && option.value === value);
 
 export default function SalesPage() {
   return (
@@ -39,9 +42,12 @@ function SalesList() {
   // "All bills for this customer" — linked from the Customers page.
   const customerId = searchParams.get("customer") ?? undefined;
   const customerName = searchParams.get("name");
+  // "Who owes me" links here with ?payment=due.
+  const linkedPayment = searchParams.get("payment");
 
   const [searchInput, setSearchInput] = useState("");
   const [status, setStatus] = useState<InvoiceStatus | "">("");
+  const [payment, setPayment] = useState<PaymentFilter | "">(isPaymentFilter(linkedPayment) ? linkedPayment : "");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
@@ -50,11 +56,13 @@ function SalesList() {
   const [whatsappFor, setWhatsappFor] = useState<InvoiceListItem | null>(null);
   const [cancelFor, setCancelFor] = useState<InvoiceListItem | null>(null);
   const [returnFor, setReturnFor] = useState<string | null>(null);
+  const [paymentsFor, setPaymentsFor] = useState<PaymentsTarget | null>(null);
 
   const { data, isFetching, isLoading, isError, refetch } = useListInvoicesQuery(
     {
       search: search || undefined,
       status: status || undefined,
+      payment: payment || undefined,
       customer: customerId,
       from: from ? localDayBoundaryIso(from, "start") : undefined,
       to: to ? localDayBoundaryIso(to, "end") : undefined,
@@ -72,7 +80,7 @@ function SalesList() {
     };
   }
 
-  const hasFilters = !!(searchInput || status || from || to);
+  const hasFilters = !!(searchInput || status || payment || from || to);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -102,7 +110,32 @@ function SalesList() {
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+      {data && data.dues.dueCount > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+          <span className="text-foreground">
+            <span className="font-semibold">{formatCurrency(data.dues.dueAmount)}</span> still to collect from {data.dues.dueCount} bill
+            {data.dues.dueCount === 1 ? "" : "s"}
+            {data.dues.overdueCount > 0 && (
+              <span className="font-medium text-chilli-700">
+                {" "}
+                · {formatCurrency(data.dues.overdueAmount)} overdue ({data.dues.overdueCount})
+              </span>
+            )}
+          </span>
+          <span className="flex gap-3 text-xs font-medium">
+            <button type="button" onClick={() => withPageReset(setPayment)("due")} className="text-primary underline">
+              Show what&apos;s due
+            </button>
+            {data.dues.overdueCount > 0 && (
+              <button type="button" onClick={() => withPageReset(setPayment)("overdue")} className="text-primary underline">
+                Show overdue
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto]">
         <div className="relative col-span-2 sm:col-span-1">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
@@ -118,12 +151,25 @@ function SalesList() {
           value={status}
           onChange={(e) => withPageReset(setStatus)(e.target.value as InvoiceStatus | "")}
           aria-label="Status"
-          className="input col-span-2 sm:col-span-1"
+          className="input"
         >
           <option value="">All bills</option>
-          <option value="paid">Paid</option>
+          {/* "paid" here means a normal sale, not that the money has come in — that's the payment filter beside it. */}
+          <option value="paid">Active</option>
           <option value="void">Cancelled</option>
           <option value="credited">Credited (reversed)</option>
+        </select>
+        <select
+          value={payment}
+          onChange={(e) => withPageReset(setPayment)(e.target.value as PaymentFilter | "")}
+          aria-label="Payment"
+          className="input"
+        >
+          {PAYMENT_FILTER_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
         <input
           type="date"
@@ -148,6 +194,7 @@ function SalesList() {
           onClick={() => {
             setSearchInput("");
             setStatus("");
+            setPayment("");
             setFrom("");
             setTo("");
             setPage(1);
@@ -186,6 +233,7 @@ function SalesList() {
               onWhatsapp={() => setWhatsappFor(invoice)}
               onCancel={() => setCancelFor(invoice)}
               onReturn={() => setReturnFor(invoice.invoiceNumber)}
+              onPayments={() => setPaymentsFor({ kind: "gst", number: invoice.invoiceNumber })}
             />
           ))}
         </ul>
@@ -196,6 +244,7 @@ function SalesList() {
       <SendWhatsappDialog invoice={whatsappFor} onClose={() => setWhatsappFor(null)} />
       <CancelInvoiceDialog invoice={cancelFor} onClose={() => setCancelFor(null)} />
       <ReturnItemsDialog invoiceNumber={returnFor} onClose={() => setReturnFor(null)} />
+      <PaymentsDialog target={paymentsFor} isAdmin={isAdmin} onClose={() => setPaymentsFor(null)} />
     </div>
   );
 }
@@ -206,12 +255,14 @@ function SaleRow({
   onWhatsapp,
   onCancel,
   onReturn,
+  onPayments,
 }: {
   invoice: InvoiceListItem;
   isAdmin: boolean;
   onWhatsapp: () => void;
   onCancel: () => void;
   onReturn: () => void;
+  onPayments: () => void;
 }) {
   const isCancelled = invoice.status === "void";
   const isCredited = invoice.status === "credited";
@@ -243,6 +294,7 @@ function SaleRow({
             {(invoice.priceMode ? invoice.priceMode === "exclusive" : invoice.buyerType === "B2B") && (
               <span className="rounded-full bg-leaf-100 px-2 py-0.5 text-xs font-medium text-leaf-700">B2B</span>
             )}
+            <PaymentStatusBadge payment={invoice.payment} cancelled={isCancelled} />
             {invoice.gstLocked && !isCancelled && (
               <span className="flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600">
                 <Lock size={11} aria-hidden />
@@ -255,8 +307,13 @@ function SaleRow({
             {invoice.customer.phone && <span className="text-muted"> · {invoice.customer.phone}</span>}
           </p>
           <p className="mt-0.5 text-xs text-muted">
-            {formatDateTime(invoice.billingDate)} · {invoice.itemCount} item{invoice.itemCount === 1 ? "" : "s"} ·{" "}
-            {paymentLabel(invoice.paymentMethod)}
+            {formatDateTime(invoice.billingDate)} · {invoice.itemCount} item{invoice.itemCount === 1 ? "" : "s"}
+            {invoice.payment.balanceDue > 0 && invoice.payment.dueDate && (
+              <span className={invoice.payment.overdue ? "font-medium text-chilli-700" : ""}>
+                {" "}
+                · due {formatDate(invoice.payment.dueDate)}
+              </span>
+            )}
           </p>
           {isCancelled && invoice.cancelReason && (
             <p className="mt-0.5 text-xs text-muted">Reason: {invoice.cancelReason}</p>
@@ -276,6 +333,16 @@ function SaleRow({
           <ExternalLink size={14} aria-hidden />
           View
         </Link>
+        {(invoice.payment.balanceDue > 0 || invoice.payment.refundDue > 0) && (
+          <button
+            type="button"
+            onClick={onPayments}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground"
+          >
+            <Wallet size={14} aria-hidden />
+            {invoice.payment.refundDue > 0 ? "Refund" : "Record payment"}
+          </button>
+        )}
         {!isClosed && (
           <button
             type="button"
@@ -284,6 +351,16 @@ function SaleRow({
           >
             <MessageCircle size={14} aria-hidden />
             {invoice.whatsappSentAt ? "Resend WhatsApp" : "Send WhatsApp"}
+          </button>
+        )}
+        {invoice.payment.balanceDue === 0 && invoice.payment.refundDue === 0 && (invoice.payment.amountPaid > 0 || !isClosed) && (
+          <button
+            type="button"
+            onClick={onPayments}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-ink-100"
+          >
+            <Wallet size={14} aria-hidden />
+            Payments
           </button>
         )}
         {isAdmin && !isClosed && (

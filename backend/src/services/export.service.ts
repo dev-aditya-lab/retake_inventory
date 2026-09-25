@@ -4,6 +4,8 @@ import { Invoice } from "../models/Invoice.model";
 import { NonGstBill } from "../models/NonGstBill.model";
 import { StockMovement } from "../models/StockMovement.model";
 import { toCsv } from "../utils/csv";
+import { istDayKey } from "../utils/istDate";
+import { summarizePayment } from "../utils/payments";
 import type { DateRange } from "./report.service";
 
 export type ExportFormat = "csv" | "xlsx";
@@ -21,6 +23,17 @@ async function buildWorkbookBuffer(sheetName: string, columns: ColumnDef[], rows
   sheet.addRows(rows);
   const arrayBuffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(arrayBuffer);
+}
+
+/** The paid / owing columns every bill export carries. */
+function paymentColumns(bill: Parameters<typeof summarizePayment>[0]) {
+  const payment = summarizePayment(bill);
+  return {
+    amountPaid: payment.amountPaid,
+    balanceDue: payment.balanceDue,
+    paymentStatus: payment.overdue ? "overdue" : payment.paymentStatus,
+    dueDate: payment.dueDate ? istDayKey(payment.dueDate) : "",
+  };
 }
 
 function dateRangeMatch(range: DateRange): Record<string, unknown> {
@@ -104,6 +117,10 @@ const INVOICE_COLUMNS: ColumnDef[] = [
   { header: "GST Amount", key: "gstAmount", width: 12 },
   { header: "Other Charges", key: "otherCharges", width: 12 },
   { header: "Grand Total", key: "grandTotal", width: 12 },
+  { header: "Amount Paid", key: "amountPaid", width: 12 },
+  { header: "Balance Due", key: "balanceDue", width: 12 },
+  { header: "Payment Status", key: "paymentStatus", width: 14 },
+  { header: "Due Date", key: "dueDate", width: 12 },
   { header: "Payment Method", key: "paymentMethod", width: 14 },
   { header: "Status", key: "status", width: 10 },
   { header: "Credited", key: "creditedTotal", width: 12 },
@@ -127,7 +144,8 @@ export async function exportInvoices(format: ExportFormat, range: DateRange): Pr
     gstAmount: inv.gst?.amount ?? 0,
     otherCharges: inv.otherCharges,
     grandTotal: inv.grandTotal,
-    paymentMethod: inv.paymentMethod,
+    ...paymentColumns(inv),
+    paymentMethod: inv.paymentMethod ?? "",
     status: inv.status,
     creditedTotal: inv.creditedTotal ?? 0,
   }));
@@ -154,6 +172,10 @@ const NON_GST_BILL_COLUMNS: ColumnDef[] = [
   { header: "Items Total", key: "subtotal", width: 12 },
   { header: "Other Charges", key: "otherCharges", width: 12 },
   { header: "Grand Total", key: "grandTotal", width: 12 },
+  { header: "Amount Paid", key: "amountPaid", width: 12 },
+  { header: "Balance Due", key: "balanceDue", width: 12 },
+  { header: "Payment Status", key: "paymentStatus", width: 14 },
+  { header: "Due Date", key: "dueDate", width: 12 },
   { header: "Payment Method", key: "paymentMethod", width: 14 },
   { header: "Status", key: "status", width: 10 },
 ];
@@ -171,7 +193,8 @@ export async function exportNonGstBills(format: ExportFormat, range: DateRange):
     subtotal: bill.subtotal,
     otherCharges: bill.otherCharges,
     grandTotal: bill.grandTotal,
-    paymentMethod: bill.paymentMethod,
+    ...paymentColumns(bill),
+    paymentMethod: bill.paymentMethod ?? "",
     status: bill.status,
   }));
 

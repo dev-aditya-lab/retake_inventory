@@ -6,6 +6,8 @@ import type { NonGstBillDoc } from "../models/NonGstBill.model";
 import { encodeInvoiceBarcode } from "./barcode.service";
 import { supplierSnapshot } from "./gstDocument.service";
 import { ApiError } from "../utils/ApiError";
+import { summarizePayment, type PayableLike } from "../utils/payments";
+import type { PdfPayment } from "../pdf/PaymentBlock";
 import { GST_VERSION, type InvoiceDoc } from "../models/Invoice.model";
 import type { CreditNoteDoc } from "../models/CreditNote.model";
 
@@ -77,6 +79,30 @@ function taxDocFields(doc: GstDoc) {
   };
 }
 
+interface PdfPayableDoc extends PayableLike {
+  payments: { kind: string; amount: number; method: string; receivedAt: Date }[];
+}
+
+/**
+ * The payment block of a bill's PDF. A cancelled bill nobody paid has nothing
+ * to say (it would read "PAID"); one that took money shows the refund owed.
+ */
+function paymentForPdf(bill: PdfPayableDoc): PdfPayment | undefined {
+  const summary = summarizePayment(bill);
+  if (bill.status === "void" && summary.amountPaid === 0) return undefined;
+  return {
+    status: summary.paymentStatus,
+    overdue: summary.overdue,
+    amountPaid: summary.amountPaid,
+    balanceDue: summary.balanceDue,
+    refundDue: summary.refundDue,
+    dueDate: summary.dueDate,
+    entries: [...bill.payments]
+      .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime())
+      .map((entry) => ({ date: entry.receivedAt, method: entry.method, kind: entry.kind === "refund" ? "refund" : "payment", amount: entry.amount })),
+  };
+}
+
 export async function generateInvoicePdf(invoice: InvoiceDoc): Promise<Buffer> {
   if (invoice.gstVersion === GST_VERSION) {
     const data: TaxDocPdfData = {
@@ -84,7 +110,7 @@ export async function generateInvoicePdf(invoice: InvoiceDoc): Promise<Buffer> {
       number: invoice.invoiceNumber,
       date: invoice.billingDate,
       ...taxDocFields(invoice),
-      paymentMethod: invoice.paymentMethod,
+      payment: paymentForPdf(invoice),
       cancelled: invoice.status === "void",
       barcodeModules: encodeInvoiceBarcode(invoice.invoiceNumber),
     };
@@ -113,7 +139,7 @@ export async function generateInvoicePdf(invoice: InvoiceDoc): Promise<Buffer> {
     subtotal: invoice.subtotal,
     grandTotal: invoice.grandTotal,
     amountInWords: invoice.amountInWords,
-    paymentMethod: invoice.paymentMethod,
+    payment: paymentForPdf(invoice),
     cancelled: invoice.status === "void",
     barcodeModules: encodeInvoiceBarcode(invoice.invoiceNumber),
   };
@@ -134,7 +160,7 @@ export async function generateNonGstBillPdf(bill: NonGstBillDoc): Promise<Buffer
     subtotal: bill.subtotal,
     grandTotal: bill.grandTotal,
     amountInWords: bill.amountInWords,
-    paymentMethod: bill.paymentMethod,
+    payment: paymentForPdf(bill),
     cancelled: bill.status === "void",
     barcodeModules: encodeInvoiceBarcode(bill.billNumber),
   };

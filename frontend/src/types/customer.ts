@@ -10,6 +10,8 @@ export interface Customer {
   /** Paid (not cancelled) bills only. */
   invoiceCount: number;
   totalSpent: number;
+  /** Still owed on their GST bills (advances and part-payments already taken off). */
+  dueAmount?: number;
 }
 
 export interface CustomerDetails {

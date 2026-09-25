@@ -1,5 +1,6 @@
 import { Schema, model, Types, type InferSchemaType, type HydratedDocument } from "mongoose";
 import { gstDocumentFields, gstLineSchema } from "./gstSchemas";
+import { PAYMENT_METHODS, paymentFields } from "./paymentSchemas";
 
 // paid     — a normal sale.
 // void     — cancelled before its month's GSTR-1 was filed: stock returned,
@@ -53,7 +54,10 @@ const invoiceSchema = new Schema(
     // Sum of credit notes issued against this invoice (returns after filing).
     creditedTotal: { type: Number, default: 0, min: 0 },
 
-    paymentMethod: { type: String, enum: ["cash", "cheque", "upi", "bank_transfer"], required: true },
+    // The method of the first payment (kept for exports and old readers). The payments
+    // themselves — advance, part-payments, refunds — live in `payments`; see paymentSchemas.ts.
+    paymentMethod: { type: String, enum: PAYMENT_METHODS },
+    ...paymentFields,
     status: { type: String, enum: INVOICE_STATUSES, default: "paid" },
     note: { type: String, default: "" },
 

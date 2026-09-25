@@ -15,12 +15,21 @@ import {
 } from "@/lib/redux/features/carts/cartsApi";
 import { useLazyLookupCustomerQuery } from "@/lib/redux/features/customers/customersApi";
 import { getApiErrorMessage } from "@/lib/apiError";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { gstinStateCode, looksLikeGstin } from "@/lib/gstCalc";
 import { B2C_FULL_DETAILS_THRESHOLD, SUPPLIER_STATE_CODE } from "@/config/gst";
-import type { CartData, CompletedSale, PaymentMethod } from "@/types/cart";
+import type { CartData, CompletedSale, PaymentMethod, PaymentPreview } from "@/types/cart";
 import type { Product } from "@/types/product";
 import { PAYMENT_METHODS } from "@/types/cart";
+
+type PayMode = "full" | "part" | "later";
+
+/** How the cart is currently set to be paid, read back from what the server has saved. */
+const payModeOf = (cart: CartData): PayMode => (cart.amountReceived === undefined ? "full" : cart.amountReceived === 0 ? "later" : "part");
+
+/** What the server should bill as "received now" for what is on screen: null = the whole total. */
+const amountReceivedFor = (mode: PayMode, receivedText: string): number | null =>
+  mode === "full" ? null : mode === "later" ? 0 : Math.max(0, Number(receivedText) || 0);
 
 /** What a cart line needs to show: its price, its total and — on GST bills — its rate. */
 interface PricedLine {
@@ -43,6 +52,9 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
   const [updateItem] = useUpdateCartItemMutation();
   const [removeItem] = useRemoveCartItemMutation();
   const [updateCart] = useUpdateCartMutation();
+  // The payment choice lives here (not inside the payment card) so checkout can send exactly what is on screen.
+  const [payMode, setPayMode] = useState<PayMode>(() => payModeOf(cart));
+  const [receivedText, setReceivedText] = useState(() => (cart.amountReceived ? String(cart.amountReceived) : ""));
   const [checkout, { isLoading: isCheckingOutGst }] = useCheckoutMutation();
   const [checkoutNonGst, { isLoading: isCheckingOutNonGst }] = useCheckoutNonGstMutation();
   const [scanError, setScanError] = useState<string | null>(null);
@@ -81,6 +93,9 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
   async function handleCheckout() {
     setCheckoutError(null);
     try {
+      // The server bills what it has saved. An amount that was just typed may not have been sent yet
+      // (the field's blur can land after this tap), so send it now — money must never depend on that race.
+      await updateCart({ id: cart.id, amountReceived: amountReceivedFor(payMode, receivedText) }).unwrap();
       if (gstApplicable) {
         onCheckedOut({ kind: "gst", invoice: await checkout(cart.id).unwrap() });
       } else {
@@ -170,8 +185,13 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
         onSave={(customer) => updateCart({ id: cart.id, customer })}
       />
       <PaymentFields
+        key={cart.id}
         cart={cart}
         gstApplicable={gstApplicable}
+        payMode={payMode}
+        receivedText={receivedText}
+        onPayModeChange={setPayMode}
+        onReceivedTextChange={setReceivedText}
         onSave={(updates) => updateCart({ id: cart.id, ...updates })}
       />
       <BillTypeFields cart={cart} onSave={(updates) => updateCart({ id: cart.id, ...updates })} />
@@ -216,6 +236,7 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
               <dt className="text-foreground">Grand total</dt>
               <dd className="text-foreground">{formatCurrency(gstPreview.grandTotal)}</dd>
             </div>
+            <BalanceLines payment={gstPreview.payment} />
           </dl>
         </div>
       )}
@@ -241,6 +262,7 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
               <dt className="text-foreground">Total</dt>
               <dd className="text-foreground">{formatCurrency(nonGstPreview.grandTotal)}</dd>
             </div>
+            <BalanceLines payment={nonGstPreview.payment} />
           </dl>
         </div>
       )}
@@ -463,20 +485,79 @@ function CustomerFields({
   );
 }
 
+/** "Received now" and "Balance due" under a bill's total — only when something is being left owing. */
+function BalanceLines({ payment }: { payment: PaymentPreview }) {
+  if (payment.balanceDue <= 0) return null;
+  return (
+    <>
+      <div className="flex justify-between">
+        <dt className="text-muted">Received now</dt>
+        <dd className="text-foreground">{formatCurrency(payment.amountReceived)}</dd>
+      </div>
+      <div className="flex justify-between text-base font-semibold text-chilli-700">
+        <dt>Balance due</dt>
+        <dd>{formatCurrency(payment.balanceDue)}</dd>
+      </div>
+      {payment.dueDate && <p className="text-xs text-muted">To be paid by {formatDate(payment.dueDate)}</p>}
+    </>
+  );
+}
+
+const PAY_MODES: { value: PayMode; label: string }[] = [
+  { value: "full", label: "Paid in full" },
+  { value: "part", label: "Advance / part" },
+  { value: "later", label: "Pay later" },
+];
+const DUE_DAY_CHOICES = [7, 15, 30];
+
+/** YYYY-MM-DD, `offsetDays` from today, in the user's own calendar. */
+const localDay = (offsetDays = 0) => {
+  const day = new Date();
+  day.setDate(day.getDate() + offsetDays);
+  return day.toLocaleDateString("en-CA");
+};
+
 function PaymentFields({
   cart,
   gstApplicable,
+  payMode,
+  receivedText,
+  onPayModeChange,
+  onReceivedTextChange,
   onSave,
 }: {
   cart: CartData;
   gstApplicable: boolean;
-  onSave: (updates: { otherCharges?: number; paymentMethod?: PaymentMethod }) => void;
+  payMode: PayMode;
+  receivedText: string;
+  onPayModeChange: (mode: PayMode) => void;
+  onReceivedTextChange: (text: string) => void;
+  onSave: (updates: {
+    otherCharges?: number;
+    paymentMethod?: PaymentMethod;
+    amountReceived?: number | null;
+    dueDate?: string | null;
+  }) => void;
 }) {
   const [otherCharges, setOtherCharges] = useState(String(cart.otherCharges || ""));
   const inclusive = cart.isB2b !== true;
   const chargesLabel = gstApplicable
     ? `Other charges — packing/delivery (${inclusive ? "incl." : "excl."} GST, ₹)`
     : "Other charges — packing/delivery (₹)";
+
+  const payment = cart.preview?.payment;
+  const grandTotal = cart.preview?.grandTotal ?? 0;
+  const balanceDue = payment?.balanceDue ?? 0;
+  const handingOverNow = payMode !== "later";
+
+  function chooseMode(mode: PayMode) {
+    onPayModeChange(mode);
+    if (mode === "full") onSave({ amountReceived: null, dueDate: null });
+    // "Part" starts at 0 until an amount is typed, so a forgotten amount shows the whole bill as still owing —
+    // never as quietly paid.
+    else onSave({ amountReceived: mode === "later" ? 0 : Math.max(0, Number(receivedText) || 0) });
+    if (mode === "later") onReceivedTextChange("");
+  }
 
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
@@ -494,24 +575,101 @@ function PaymentFields({
       </label>
 
       <div className="mt-3">
-        <p className="mb-1.5 text-sm font-medium text-foreground">Payment method</p>
-        <div className="flex flex-wrap gap-2">
-          {PAYMENT_METHODS.map((m) => (
+        <p className="mb-1.5 text-sm font-medium text-foreground">Payment</p>
+        <div className="grid grid-cols-3 gap-1 rounded-md border border-border bg-background p-0.5" role="group" aria-label="How much is being paid now">
+          {PAY_MODES.map((m) => (
             <button
               key={m.value}
               type="button"
-              onClick={() => onSave({ paymentMethod: m.value })}
-              className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
-                cart.paymentMethod === m.value
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border text-foreground hover:bg-ink-100"
-              }`}
+              aria-pressed={payMode === m.value}
+              onClick={() => chooseMode(m.value)}
+              className={`rounded px-2 py-2 text-xs font-medium ${payMode === m.value ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-ink-100"}`}
             >
               {m.label}
             </button>
           ))}
         </div>
+
+        {payMode === "part" && (
+          <label className="mt-2 flex flex-col gap-1.5 text-sm font-medium text-foreground">
+            Amount received now (₹)
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              max={grandTotal || undefined}
+              value={receivedText}
+              onChange={(e) => onReceivedTextChange(e.target.value)}
+              onBlur={() => onSave({ amountReceived: amountReceivedFor("part", receivedText) })}
+              placeholder="e.g. 500"
+              className="input"
+            />
+          </label>
+        )}
       </div>
+
+      {handingOverNow && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-sm font-medium text-foreground">Paid by</p>
+          <div className="flex flex-wrap gap-2">
+            {PAYMENT_METHODS.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => onSave({ paymentMethod: m.value })}
+                className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+                  cart.paymentMethod === m.value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-foreground hover:bg-ink-100"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {balanceDue > 0 && (
+        <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3">
+          <p className="text-sm font-medium text-foreground">
+            {formatCurrency(balanceDue)} will be left to pay
+          </p>
+          <p className="mt-0.5 text-xs text-muted">Collect it by (optional):</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {DUE_DAY_CHOICES.map((days) => (
+              <button
+                key={days}
+                type="button"
+                aria-pressed={cart.dueDate === localDay(days)}
+                onClick={() => onSave({ dueDate: localDay(days) })}
+                className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${
+                  cart.dueDate === localDay(days) ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:bg-ink-100"
+                }`}
+              >
+                {days} days
+              </button>
+            ))}
+            <input
+              type="date"
+              value={cart.dueDate ?? ""}
+              min={localDay()}
+              onChange={(e) => onSave({ dueDate: e.target.value || null })}
+              aria-label="Balance due by"
+              className="input w-auto py-1.5 text-xs"
+            />
+            {cart.dueDate && (
+              <button type="button" onClick={() => onSave({ dueDate: null })} className="px-1.5 text-xs font-medium text-muted underline">
+                Clear
+              </button>
+            )}
+          </div>
+          {!cart.customer.phone?.trim() && (
+            <p className="mt-2 text-xs text-warning">Add the customer&apos;s phone number so you can follow up on this amount.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

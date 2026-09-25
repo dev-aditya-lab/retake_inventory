@@ -3,14 +3,8 @@ import { company } from "@/config/company";
 import { InvoiceBarcode } from "./InvoiceBarcode";
 import { TaxDocumentView } from "./TaxDocumentView";
 import { AuthorisedSignatory } from "./AuthorisedSignatory";
+import { PaymentSummaryView } from "@/components/payments/PaymentSummaryView";
 import type { Invoice } from "@/types/invoice";
-
-const PAYMENT_METHODS: { value: string; label: string }[] = [
-  { value: "cash", label: "Cash" },
-  { value: "cheque", label: "Cheque" },
-  { value: "upi", label: "UPI" },
-  { value: "bank_transfer", label: "Bank Transfer" },
-];
 
 /**
  * Shared invoice layout — used for the on-screen preview and for printing
@@ -23,7 +17,7 @@ export function InvoiceView({ invoice }: { invoice: Invoice }) {
       <TaxDocumentView
         title="TAX INVOICE"
         doc={{ ...invoice, number: invoice.invoiceNumber, date: invoice.billingDate }}
-        paymentMethod={invoice.paymentMethod}
+        payment={invoice.payment && { summary: invoice.payment, entries: invoice.payments ?? [] }}
         cancelled={invoice.status === "void"}
       />
     );
@@ -138,20 +132,9 @@ export function InvoiceView({ invoice }: { invoice: Invoice }) {
 
       <p className="mt-3 text-sm italic text-ink-700">Amount in words: {invoice.amountInWords}</p>
 
-      <div className="mt-4 flex flex-wrap gap-4 text-sm">
-        {PAYMENT_METHODS.map((m) => (
-          <label key={m.value} className="flex items-center gap-1.5">
-            <span
-              className={`flex h-4 w-4 items-center justify-center rounded-sm border ${
-                invoice.paymentMethod === m.value ? "border-chilli-600 bg-chilli-600 text-white" : "border-ink-300"
-              }`}
-            >
-              {invoice.paymentMethod === m.value && "✓"}
-            </span>
-            {m.label}
-          </label>
-        ))}
-      </div>
+      {invoice.payment && (
+        <PaymentSummaryView payment={invoice.payment} entries={invoice.payments ?? []} cancelled={invoice.status === "void"} />
+      )}
 
       <p className="mt-4 text-xs text-ink-500">This is a computer generated invoice.</p>
       <p className="mt-1 text-xs text-ink-500">

@@ -103,3 +103,24 @@ export function creditNoteDeadline(supplyDate: Date): Date {
   const financialYearEnd = month >= 4 ? year + 1 : year;
   return istMidnight(financialYearEnd, 12, 1);
 }
+
+const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Midnight India time at the start of a "YYYY-MM-DD" day, as a real instant —
+ * or null if the text isn't a real calendar day (e.g. 2026-02-30).
+ */
+export function parseIstDay(day: string): Date | null {
+  const match = DAY_PATTERN.exec(day);
+  if (!match) return null;
+  const [year, month, date] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const check = new Date(Date.UTC(year, month - 1, date));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== date) return null;
+  return istMidnight(year, month, date);
+}
+
+/** The India calendar day of a moment, as "YYYY-MM-DD". */
+export function istDayKey(date: Date): string {
+  const { year, month, day } = istParts(date);
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}

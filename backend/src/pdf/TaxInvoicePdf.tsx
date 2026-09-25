@@ -3,6 +3,7 @@ import { company } from "../config/company";
 import { UQC_CODES } from "../config/gst";
 import { InvoiceBarcode, logoBuffer } from "./InvoicePdf";
 import { SignatoryBlock } from "./SignatoryBlock";
+import { PaymentBlock, type PdfPayment } from "./PaymentBlock";
 
 // GST tax invoice / credit note layout carrying every particular CGST Rule 46
 // (invoice) and Rule 53 (credit note) ask for: supplier and buyer GSTIN,
@@ -35,17 +36,11 @@ export interface TaxDocPdfData {
   rateSummary: (Amounts & { gstRate: number })[];
   totals: Amounts & { totalTax: number; grandTotal: number };
   amountInWords: string;
-  paymentMethod?: string;
+  /** Invoices only: what has been paid and what is still owed. Credit notes have none. */
+  payment?: PdfPayment;
   cancelled?: boolean;
   barcodeModules: string;
 }
-
-const PAYMENT_METHODS: { value: string; label: string }[] = [
-  { value: "cash", label: "Cash" },
-  { value: "cheque", label: "Cheque" },
-  { value: "upi", label: "UPI" },
-  { value: "bank_transfer", label: "Bank Transfer" },
-];
 
 // Helvetica has no ₹ glyph, so amounts print as "Rs.".
 const rs = (n: number | null | undefined) => `Rs. ${(n ?? 0).toFixed(2)}`;
@@ -115,9 +110,6 @@ const s = StyleSheet.create({
   },
   words: { marginTop: 8, fontFamily: "Helvetica-Oblique" },
   note: { fontSize: 7.5, color: MUTED, marginTop: 4 },
-  paymentRow: { flexDirection: "row", marginTop: 8 },
-  paymentItem: { flexDirection: "row", alignItems: "center", marginRight: 14 },
-  checkbox: { width: 9, height: 9, borderWidth: 1, borderColor: BRAND, marginRight: 3, textAlign: "center", fontSize: 7 },
   signRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: 14 },
 });
 
@@ -307,16 +299,7 @@ export function TaxInvoicePdf({ doc }: { doc: TaxDocPdfData }) {
         <Text style={s.words}>Amount in words: {doc.amountInWords}</Text>
         {inclusive ? <Text style={s.note}>Prices shown are MRP, inclusive of GST.</Text> : null}
 
-        {doc.paymentMethod ? (
-          <View style={s.paymentRow}>
-            {PAYMENT_METHODS.map((m) => (
-              <View key={m.value} style={s.paymentItem}>
-                <Text style={s.checkbox}>{doc.paymentMethod === m.value ? "X" : ""}</Text>
-                <Text>{m.label}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
+        {doc.payment ? <PaymentBlock payment={doc.payment} /> : null}
 
         <View style={s.signRow} wrap={false}>
           <View>

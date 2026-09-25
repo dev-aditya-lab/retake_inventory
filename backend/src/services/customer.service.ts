@@ -6,6 +6,7 @@ import { escapeRegex } from "../utils/regex";
 import { phoneKey } from "../utils/phone";
 import { isDuplicateKeyError } from "../utils/mongoErrors";
 import { logger } from "../config/logger";
+import { BALANCE_DUE_EXPR } from "../utils/payments";
 
 export interface CustomerDetails {
   name?: string;
@@ -51,6 +52,7 @@ export async function listCustomers({ search, page, limit }: CustomerListFilters
     _id: Types.ObjectId;
     invoiceCount: number;
     totalSpent: number;
+    dueAmount: number;
     lastPurchaseAt: Date;
   }>([
     // Bills that stood (incl. ones later returned via credit note), net of returns.
@@ -60,6 +62,8 @@ export async function listCustomers({ search, page, limit }: CustomerListFilters
         _id: "$customerRef",
         invoiceCount: { $sum: 1 },
         totalSpent: { $sum: { $subtract: ["$grandTotal", { $ifNull: ["$creditedTotal", 0] }] } },
+        // Still owed on those bills (advances and part-payments already taken off).
+        dueAmount: { $sum: BALANCE_DUE_EXPR },
         lastPurchaseAt: { $max: "$billingDate" },
       },
     },
@@ -73,6 +77,7 @@ export async function listCustomers({ search, page, limit }: CustomerListFilters
         ...c,
         invoiceCount: s?.invoiceCount ?? 0,
         totalSpent: s?.totalSpent ?? 0,
+        dueAmount: Math.round((s?.dueAmount ?? 0) * 100) / 100,
         lastPurchaseAt: s?.lastPurchaseAt ?? c.lastPurchaseAt ?? null,
       };
     }),

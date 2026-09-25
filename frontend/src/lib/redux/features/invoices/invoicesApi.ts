@@ -3,10 +3,13 @@ import type { Invoice, InvoiceCustomer, InvoiceListItem, InvoiceStatus } from "@
 import type { CreditNote } from "@/types/creditNote";
 import type { PaymentMethod } from "@/types/cart";
 import type { Paginated } from "@/types/pagination";
+import type { DueSummary, PaymentFilter } from "@/types/payment";
 
 export interface InvoiceListFilters {
   search?: string;
   status?: InvoiceStatus;
+  /** Only bills in this payment state (still owing, overdue, settled…). */
+  payment?: PaymentFilter;
   /** Customer directory id — "all bills for this customer". */
   customer?: string;
   /** ISO datetimes (start/end of the chosen local days). */
@@ -14,6 +17,21 @@ export interface InvoiceListFilters {
   to?: string;
   page?: number;
   limit?: number;
+}
+
+/** A page of invoices, plus the money still to collect across ALL of them (not just this page). */
+export interface InvoicePage extends Paginated<InvoiceListItem> {
+  dues: DueSummary;
+}
+
+/** A payment (advance, part-payment, the rest) or a refund to record against a bill. */
+export interface RecordPaymentInput {
+  amount: number;
+  method: PaymentMethod;
+  kind?: "payment" | "refund";
+  /** ISO datetime the money changed hands; left out = now. */
+  receivedAt?: string;
+  note?: string;
 }
 
 export interface UpdateInvoiceInput {
@@ -24,7 +42,6 @@ export interface UpdateInvoiceInput {
   priceMode: "exclusive" | "inclusive";
   items: { product: string; quantity: number; unitPrice: number }[];
   otherCharges: number;
-  paymentMethod: PaymentMethod;
   note?: string;
 }
 
@@ -48,6 +65,13 @@ const saleSideEffectTags = [
   "CreditNote" as const,
 ];
 
+// Recording a payment changes what is owing — on this bill, in the list and in the customer's balance.
+const paymentTags = (invoiceNumber: string) => [
+  { type: "Invoice" as const, id: invoiceNumber },
+  { type: "Invoice" as const, id: "LIST" },
+  "Customer" as const,
+];
+
 export const invoicesApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getInvoice: builder.query<Invoice, string>({
@@ -55,9 +79,9 @@ export const invoicesApi = apiSlice.injectEndpoints({
       transformResponse: unwrap<Invoice>,
       providesTags: (_r, _e, invoiceNumber) => [{ type: "Invoice", id: invoiceNumber }],
     }),
-    listInvoices: builder.query<Paginated<InvoiceListItem>, InvoiceListFilters>({
+    listInvoices: builder.query<InvoicePage, InvoiceListFilters>({
       query: (filters) => `/api/invoices${toQueryString(filters)}`,
-      transformResponse: unwrap<Paginated<InvoiceListItem>>,
+      transformResponse: unwrap<InvoicePage>,
       providesTags: [{ type: "Invoice", id: "LIST" }],
     }),
     updateInvoice: builder.mutation<Invoice, UpdateInvoiceInput>({
@@ -97,6 +121,27 @@ export const invoicesApi = apiSlice.injectEndpoints({
       transformResponse: unwrap<CreditNote>,
       providesTags: (_r, _e, noteNumber) => [{ type: "CreditNote", id: noteNumber }],
     }),
+    /**
+     * Money received against a bill. Refreshes the invoice, the list and the customer's
+     * balance — but never GST returns or reports: payments don't change the tax invoice.
+     */
+    recordInvoicePayment: builder.mutation<Invoice, RecordPaymentInput & { invoiceNumber: string }>({
+      query: ({ invoiceNumber, ...body }) => ({ url: `/api/invoices/${invoiceNumber}/payments`, method: "POST", body }),
+      transformResponse: unwrap<Invoice>,
+      invalidatesTags: (_r, _e, { invoiceNumber }) => paymentTags(invoiceNumber),
+    }),
+    /** Removes a payment entry that was typed in by mistake (admin). */
+    deleteInvoicePayment: builder.mutation<Invoice, { invoiceNumber: string; paymentId: string }>({
+      query: ({ invoiceNumber, paymentId }) => ({ url: `/api/invoices/${invoiceNumber}/payments/${paymentId}`, method: "DELETE" }),
+      transformResponse: unwrap<Invoice>,
+      invalidatesTags: (_r, _e, { invoiceNumber }) => paymentTags(invoiceNumber),
+    }),
+    /** Sets (or, with null, clears) the day the balance is expected by. */
+    setInvoiceDueDate: builder.mutation<Invoice, { invoiceNumber: string; dueDate: string | null }>({
+      query: ({ invoiceNumber, dueDate }) => ({ url: `/api/invoices/${invoiceNumber}/due-date`, method: "PATCH", body: { dueDate } }),
+      transformResponse: unwrap<Invoice>,
+      invalidatesTags: (_r, _e, { invoiceNumber }) => paymentTags(invoiceNumber),
+    }),
     sendInvoiceWhatsapp: builder.mutation<void, { invoiceNumber: string; phone?: string }>({
       query: ({ invoiceNumber, phone }) => ({
         url: `/api/invoices/${invoiceNumber}/send-whatsapp`,
@@ -123,6 +168,9 @@ export const {
   useListInvoiceCreditNotesQuery,
   useIssueCreditNoteMutation,
   useGetCreditNoteQuery,
+  useRecordInvoicePaymentMutation,
+  useDeleteInvoicePaymentMutation,
+  useSetInvoiceDueDateMutation,
   useSendInvoiceWhatsappMutation,
   useSendInvoiceEmailMutation,
 } = invoicesApi;

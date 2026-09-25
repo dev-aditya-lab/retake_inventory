@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { dateRangeQuerySchema } from "./report.validators";
 import { objectIdSchema, optionalEmailSchema, paginationQuerySchema } from "./common.validators";
+import { paymentFilterSchema } from "./payment.validators";
 
 export const listNonGstBillsQuerySchema = paginationQuerySchema.extend(dateRangeQuerySchema.shape).extend({
   search: z.string().trim().max(100).optional(),
   status: z.enum(["paid", "void"]).optional(),
+  payment: paymentFilterSchema.optional(),
 });
 
 export const updateNonGstBillSchema = z.object({
@@ -28,7 +30,6 @@ export const updateNonGstBillSchema = z.object({
     .min(1, "A bill needs at least one item")
     .max(200),
   otherCharges: z.number().min(0),
-  paymentMethod: z.enum(["cash", "cheque", "upi", "bank_transfer"]),
   note: z.string().trim().max(500).optional(),
 });
 

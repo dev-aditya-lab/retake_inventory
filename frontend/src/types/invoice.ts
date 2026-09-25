@@ -1,3 +1,5 @@
+import type { PaymentEntry, PaymentSummary } from "./payment";
+
 export interface InvoiceItem {
   product: string;
   name: string;
@@ -93,7 +95,15 @@ export interface Invoice extends GstDocumentFields {
   subtotal: number;
   grandTotal: number;
   amountInWords: string;
-  paymentMethod: string;
+  /** Method of the first payment (old single "how was it paid" value). */
+  paymentMethod?: string;
+  /** Every payment and refund on the bill, oldest first. */
+  payments?: PaymentEntry[];
+  amountPaid?: number;
+  /** ISO instant of midnight (India) on the day the balance is expected by. */
+  dueDate?: string;
+  /** Paid / balance due / status, worked out by the server. */
+  payment?: PaymentSummary;
   status: InvoiceStatus;
   note?: string;
   createdBy: string;
@@ -121,7 +131,8 @@ export interface InvoiceListItem {
   /** Total units across all lines. */
   itemCount: number;
   grandTotal: number;
-  paymentMethod: string;
+  paymentMethod?: string;
+  payment: PaymentSummary;
   status: InvoiceStatus;
   whatsappSentAt?: string;
   editedAt?: string;

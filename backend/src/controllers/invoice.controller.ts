@@ -8,12 +8,18 @@ import * as emailService from "../services/email.service";
 import * as exportService from "../services/export.service";
 import { generateInvoiceBarcodePng } from "../services/barcode.service";
 import { generateInvoicePdf } from "../services/pdf.service";
+import { invoicePayments } from "../services/payment.service";
+import { summarizePayment } from "../utils/payments";
 import { ApiError } from "../utils/ApiError";
 import { normalizeIndianPhone } from "../utils/phone";
 import { env } from "../config/env";
 import { redis } from "../config/redis";
 import type { ExportFormat } from "../services/export.service";
 import { cancelInvoiceSchema, creditNoteSchema, listInvoicesQuerySchema, sendWhatsappSchema } from "../validators/invoice.validators";
+import type { z } from "zod";
+import type { recordPaymentSchema } from "../validators/payment.validators";
+
+type RecordPaymentBody = z.infer<typeof recordPaymentSchema>;
 
 // Blocks an accidental double-tap from sending the same bill twice.
 const WHATSAPP_RESEND_COOLDOWN_SECONDS = 30;
@@ -24,10 +30,11 @@ function requireUserId(req: Request): string {
 }
 
 export async function listInvoices(req: Request, res: Response): Promise<void> {
-  const { search, status, customer, from, to, page, limit } = listInvoicesQuerySchema.parse(req.query);
+  const { search, status, payment, customer, from, to, page, limit } = listInvoicesQuerySchema.parse(req.query);
   const result = await invoiceService.listInvoices({
     search,
     status,
+    payment,
     customerId: customer,
     from: from ? new Date(from) : undefined,
     // A bare date ("2026-09-22") means "through the end of that day".
@@ -66,11 +73,34 @@ export async function listCreditNotes(req: Request, res: Response): Promise<void
   res.json({ success: true, data: notes });
 }
 
-export async function getInvoice(req: Request, res: Response): Promise<void> {
-  const invoice = await invoiceService.getInvoiceByNumber(req.params.invoiceNumber as string);
-  // gstLocked: its month's GSTR-1 is filed — changes must go through a credit note.
+/** An invoice as the screens see it: gstLocked = its month's GSTR-1 is filed (changes go through credit notes); payment = paid / balance due / status. */
+async function invoiceDetail(invoiceNumber: string) {
+  const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber);
   const gstLocked = await isPeriodFiled(gstPeriodOf(invoice.billingDate));
-  res.json({ success: true, data: { ...invoice.toJSON(), gstLocked } });
+  return { ...invoice.toJSON(), gstLocked, payment: summarizePayment(invoice) };
+}
+
+export async function getInvoice(req: Request, res: Response): Promise<void> {
+  res.json({ success: true, data: await invoiceDetail(req.params.invoiceNumber as string) });
+}
+
+export async function recordPayment(req: Request, res: Response): Promise<void> {
+  const number = req.params.invoiceNumber as string;
+  const { receivedAt, ...entry } = req.body as RecordPaymentBody;
+  await invoicePayments.record(number, requireUserId(req), { ...entry, receivedAt: receivedAt ? new Date(receivedAt) : undefined });
+  res.status(201).json({ success: true, data: await invoiceDetail(number) });
+}
+
+export async function deletePayment(req: Request, res: Response): Promise<void> {
+  const number = req.params.invoiceNumber as string;
+  await invoicePayments.remove(number, req.params.paymentId as string);
+  res.json({ success: true, data: await invoiceDetail(number) });
+}
+
+export async function setDueDate(req: Request, res: Response): Promise<void> {
+  const number = req.params.invoiceNumber as string;
+  await invoicePayments.setDueDate(number, (req.body as { dueDate: string | null }).dueDate);
+  res.json({ success: true, data: await invoiceDetail(number) });
 }
 
 export async function getInvoiceBarcode(req: Request, res: Response): Promise<void> {

@@ -9,7 +9,6 @@ import { gstinStateCode, looksLikeGstin, previewInvoiceTax, type PriceMode } fro
 import { GST_STATES, SUPPLIER_STATE_CODE } from "@/config/gst";
 import { PlaceOfSupplySelect } from "@/components/gst/PlaceOfSupplySelect";
 import { BuyerBadge } from "@/components/gst/BuyerBadge";
-import { PAYMENT_METHODS, type PaymentMethod } from "@/types/cart";
 import type { Invoice } from "@/types/invoice";
 import type { Product } from "@/types/product";
 import { AddProductPicker, Field } from "./billEditParts";
@@ -62,7 +61,6 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
     })),
   );
   const [otherCharges, setOtherCharges] = useState(invoice.otherCharges ? String(invoice.otherCharges) : "");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(invoice.paymentMethod as PaymentMethod);
   const [note, setNote] = useState(invoice.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
@@ -187,7 +185,6 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
           unitPrice: toNumber(line.unitPrice),
         })),
         otherCharges: toNumber(otherCharges) || 0,
-        paymentMethod,
         note: note.trim(),
       }).unwrap();
       onSaved();
@@ -358,7 +355,14 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold text-foreground">Payment</h2>
+        <h2 className="text-sm font-semibold text-foreground">Charges &amp; note</h2>
+        {invoice.payment && (
+          <p className="mt-1 rounded-md bg-surface px-3 py-2 text-xs text-muted">
+            Paid so far {formatCurrency(invoice.payment.amountPaid)}
+            {invoice.payment.balanceDue > 0 && ` · balance ${formatCurrency(invoice.payment.balanceDue)}`}. Changing the bill
+            re-works the balance; record or fix payments from the Sales page.
+          </p>
+        )}
         <Field label={`Other charges — packing/delivery (${priceMode === "exclusive" ? "excl." : "incl."} GST, ₹)`}>
           <input
             type="number"
@@ -371,26 +375,6 @@ export function InvoiceEditForm({ invoice, onSaved }: { invoice: Invoice; onSave
           />
         </Field>
 
-        <div className="mt-3">
-          <p className="mb-1.5 text-sm font-medium text-foreground">Payment method</p>
-          <div className="flex flex-wrap gap-2">
-            {PAYMENT_METHODS.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                aria-pressed={paymentMethod === m.value}
-                onClick={() => setPaymentMethod(m.value)}
-                className={`rounded-md border px-3 py-2 text-xs font-medium ${
-                  paymentMethod === m.value
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-foreground hover:bg-ink-100"
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <Field label="Note" className="mt-3">
           <textarea rows={2} value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className="input" />

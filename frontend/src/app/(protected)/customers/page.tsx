@@ -86,6 +86,16 @@ function CustomerDirectory() {
                 {customer.gstin && <p className="truncate text-xs text-muted">GSTIN {customer.gstin}</p>}
               </div>
 
+              {(customer.dueAmount ?? 0) > 0 && (
+                <Link
+                  href={`/sales?customer=${customer._id}&name=${encodeURIComponent(customer.name)}&payment=due`}
+                  className="mt-2 flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm"
+                >
+                  <span className="font-medium text-foreground">Owes {formatCurrency(customer.dueAmount ?? 0)}</span>
+                  <span className="text-xs font-medium text-primary underline">See unpaid bills</span>
+                </Link>
+              )}
+
               <dl className="mt-2 grid grid-cols-3 gap-2 rounded-md bg-surface p-2 text-center">
                 <div>
                   <dt className="text-xs text-muted">Bills</dt>

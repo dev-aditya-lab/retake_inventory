@@ -142,7 +142,7 @@ export default function BillingPage() {
           (() => {
             const cart = carts?.find((c) => c.id === effectiveActiveCartId);
             if (!cart) return null;
-            return <CartPanel cart={cart} onCheckedOut={(sale) => handleCheckedOut(effectiveActiveCartId, sale)} />;
+            return <CartPanel key={cart.id} cart={cart} onCheckedOut={(sale) => handleCheckedOut(effectiveActiveCartId, sale)} />;
           })()}
 
         {!effectiveActiveCartId && !isLoading && tabIds.length === 0 && (

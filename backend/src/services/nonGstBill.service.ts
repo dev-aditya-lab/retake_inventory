@@ -7,10 +7,11 @@ import { ApiError } from "../utils/ApiError";
 import { computeStockDeltas } from "../utils/invoiceEdit";
 import { computeNonGstTotals, nonGstPriceFor, priceListLabel } from "../utils/nonGstBill";
 import { numberToWordsINR } from "../utils/numberToWords";
+import { buildOpeningPayment, paymentFilterQuery, summarizePayment, type PaymentFilter } from "../utils/payments";
+import { dueSummary } from "./payment.service";
 import { escapeRegex } from "../utils/regex";
 import * as cartService from "./cart.service";
 import { nextDocumentNumber } from "./documentNumber.service";
-import type { PaymentMethod } from "../types/cart";
 
 // Bills with no GST. Everything here is self-contained on purpose: its own
 // collection, its own number series, and no calls into the GST invoice,
@@ -41,7 +42,8 @@ export async function checkout(userId: string, cartId: string) {
   }
   if (cart.items.length === 0) throw ApiError.badRequest("Cart is empty");
   if (!cart.customer.name?.trim()) throw ApiError.badRequest("Customer name is required");
-  if (!cart.paymentMethod) throw ApiError.badRequest("Payment method is required");
+  // A bill left entirely on credit (nothing received) needs no payment method yet.
+  if (cart.amountReceived !== 0 && !cart.paymentMethod) throw ApiError.badRequest("Payment method is required");
 
   const customer = cleanCustomer({ ...cart.customer, name: cart.customer.name });
   const priceList = cartService.cartPriceList(cart);
@@ -71,6 +73,15 @@ export async function checkout(userId: string, cartId: string) {
 
       const totals = computeNonGstTotals(lines, cart.otherCharges);
 
+      // What was handed over now (all of it, an advance, or nothing) — checked before a number is issued.
+      const opening = buildOpeningPayment({
+        total: totals.grandTotal,
+        amountReceived: cart.amountReceived,
+        method: cart.paymentMethod,
+        dueDay: cart.dueDate,
+        userId,
+      });
+
       const resultingQuantities = new Map<string, number>();
       for (const item of cart.items) {
         const product = products.get(item.productId)!;
@@ -93,7 +104,10 @@ export async function checkout(userId: string, cartId: string) {
             subtotal: totals.subtotal,
             grandTotal: totals.grandTotal,
             amountInWords: numberToWordsINR(totals.grandTotal),
-            paymentMethod: cart.paymentMethod,
+            payments: opening.payments,
+            amountPaid: opening.amountPaid,
+            paymentMethod: opening.paymentMethod,
+            dueDate: opening.dueDate,
             note: cart.note,
             createdBy: userId,
           },
@@ -134,15 +148,18 @@ export async function getBillByNumber(billNumber: string) {
 export interface NonGstBillListFilters {
   search?: string;
   status?: NonGstBillStatus;
+  /** Only bills in this payment state (still owing, overdue, settled…). */
+  payment?: PaymentFilter;
   from?: Date;
   to?: Date;
   page: number;
   limit: number;
 }
 
-export async function listBills({ search, status, from, to, page, limit }: NonGstBillListFilters) {
+export async function listBills({ search, status, payment, from, to, page, limit }: NonGstBillListFilters) {
   const query: Record<string, unknown> = {};
   if (status) query.status = status;
+  if (payment) Object.assign(query, paymentFilterQuery(payment));
   if (from || to) {
     const billingDate: Record<string, Date> = {};
     if (from) billingDate.$gte = from;
@@ -165,7 +182,7 @@ export async function listBills({ search, status, from, to, page, limit }: NonGs
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "billNumber billingDate customer items.quantity priceList grandTotal paymentMethod status whatsappSentAt editedAt cancelledAt cancelReason",
+        "billNumber billingDate customer items.quantity priceList grandTotal paymentMethod amountPaid dueDate status whatsappSentAt editedAt cancelledAt cancelReason",
       )
       .lean(),
     NonGstBill.countDocuments(query),
@@ -177,8 +194,11 @@ export async function listBills({ search, status, from, to, page, limit }: NonGs
   ]);
 
   return {
+    // Money still to collect across all non-GST bills — not just this page.
+    dues: await dueSummary(NonGstBill),
     items: bills.map(({ items, ...bill }) => ({
       ...bill,
+      payment: summarizePayment(bill),
       itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
     })),
     total,
@@ -194,7 +214,6 @@ export interface UpdateNonGstBillInput {
   priceList?: PriceList;
   items: { product: string; quantity: number; unitPrice: number }[];
   otherCharges: number;
-  paymentMethod: PaymentMethod;
   note?: string;
 }
 
@@ -278,7 +297,6 @@ export async function updateBill(billNumber: string, userId: string, input: Upda
         subtotal: totals.subtotal,
         grandTotal: totals.grandTotal,
         amountInWords: numberToWordsINR(totals.grandTotal),
-        paymentMethod: input.paymentMethod,
         note: input.note ?? "",
         editedAt: new Date(),
       });

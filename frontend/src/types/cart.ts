@@ -45,6 +45,10 @@ export interface CartData {
   gst: CartGst;
   otherCharges: number;
   paymentMethod?: PaymentMethod;
+  /** Money handed over now (an advance / part-payment). Absent = paid in full; 0 = all on credit. */
+  amountReceived?: number;
+  /** "YYYY-MM-DD" the balance is expected by. */
+  dueDate?: string;
   note?: string;
   createdAt: string;
   updatedAt: string;
@@ -63,9 +67,19 @@ export interface CartPreviewLine {
   total: number;
 }
 
+/** The counter's view of the payment side of the bill. */
+export interface PaymentPreview {
+  /** What's handed over now (the whole total unless an advance was entered). */
+  amountReceived: number;
+  /** What will be left owing. */
+  balanceDue: number;
+  dueDate: string | null;
+}
+
 /** A non-GST cart: lines at the chosen price list, no tax anywhere. */
 export interface NonGstCartPreview {
   gstApplicable: false;
+  payment: PaymentPreview;
   priceList: "b2b" | "retail";
   lines: { productId: string; unitPrice: number; total: number }[];
   otherCharges: number;
@@ -77,6 +91,7 @@ export interface NonGstCartPreview {
 
 export interface CartPreview {
   gstApplicable: true;
+  payment: PaymentPreview;
   buyerType: "B2B" | "B2C";
   /** exclusive = B2B price + GST; inclusive = MRP with GST inside. */
   priceMode: "exclusive" | "inclusive";

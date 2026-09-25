@@ -5,6 +5,7 @@ import { seedDefaultCatalogCodes } from "../services/catalogCode.service";
 import { seedHsnCodesFromProducts } from "../services/hsnCode.service";
 import { backfillCustomersFromInvoices } from "../services/customer.service";
 import { backfillBarcodeSource } from "../services/product.service";
+import { backfillPayments } from "../services/payment.service";
 
 interface DataMigration {
   /** Never rename a key once shipped — it's how a finished migration is recognised. */
@@ -22,6 +23,8 @@ const MIGRATIONS: DataMigration[] = [
   { key: "2026-09-backfill-customers", run: backfillCustomersFromInvoices },
   // Older products were saved before `barcodeSource` existed — store it explicitly.
   { key: "2026-09-backfill-barcode-source", run: backfillBarcodeSource },
+  // Payment tracking arrived: every earlier bill was paid in full at the counter.
+  { key: "2026-09-backfill-payments", run: backfillPayments },
 ];
 
 /**
