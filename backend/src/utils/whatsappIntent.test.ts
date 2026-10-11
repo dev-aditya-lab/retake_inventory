@@ -28,6 +28,8 @@ describe("detectIntent: asking for something", () => {
     expect(intentOf("how to pay")).toBe("payment");
     expect(intentOf("upi id")).toBe("payment");
     expect(intentOf("bank details")).toBe("payment");
+    expect(intentOf("talk to staff")).toBe("human");
+    expect(intentOf("I have a complaint")).toBe("human");
     expect(intentOf("contact number")).toBe("contact");
     expect(intentOf("staff number")).toBe("contact");
     expect(intentOf("address")).toBe("address");

@@ -12,6 +12,7 @@ export type Intent =
   | "contact"
   | "payment"
   | "address"
+  | "human" // wants a person to reply
   | "unknown";
 
 export interface IntentInput {
@@ -28,6 +29,7 @@ export const MENU_OPTIONS = [
   { id: "opt_contact", intent: "contact", title: "My contact person", description: "Who looks after your orders" },
   { id: "opt_payment", intent: "payment", title: "How to pay", description: "UPI and bank details" },
   { id: "opt_address", intent: "address", title: "Our address", description: "Where to find us" },
+  { id: "opt_human", intent: "human", title: "Talk to staff", description: "A team member will reply here" },
 ] as const satisfies readonly { id: string; intent: Intent; title: string; description: string }[];
 
 /** Squeezes repeated letters so "hiii", "helloo" and "heyyy" compare equal to their short forms. */
@@ -57,7 +59,8 @@ const KEYWORDS: readonly (readonly [Intent, readonly string[]])[] = [
   ["pending", ["pending", "due", "dues", "balance", "baki", "baaki", "outstanding", "unpaid", "udhaar", "udhar"]],
   ["payment", ["pay", "payment", "payments", "paying", "upi", "bank", "qr", "account", "ifsc", "paytm", "gpay", "phonepe"]],
   ["invoices", ["invoice", "bill", "receipt", "order", "purchase", "history", "statement"]],
-  ["contact", ["contact", "call", "number", "phone", "mobile", "staff", "support", "talk", "speak", "person", "sales", "salesman"]],
+  ["human", ["human", "agent", "executive", "representative", "complaint", "problem", "issue", "talk", "speak", "reply", "assist", "assistance"]],
+  ["contact", ["contact", "call", "number", "phone", "mobile", "staff", "support", "person", "sales", "salesman"]],
   ["address", ["address", "location", "where", "shop", "map", "visit", "directions", "kaha", "kahan"]],
   ["menu", ["menu", "help", "option", "options", "start", "service"]],
 ].map(([intent, words]) => [intent as Intent, (words as string[]).map(collapse)] as const);

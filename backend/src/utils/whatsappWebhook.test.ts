@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { Intent } from "./whatsappIntent";
 import {
   dispatchInbound,
+  extractChanges,
+  extractEchoes,
   extractInboundMessages,
+  extractStatuses,
   RATE_LIMIT_MESSAGES,
   safeEqual,
   verifyWebhookSignature,
@@ -64,7 +67,15 @@ describe("extractInboundMessages", () => {
     });
 
     expect(extractInboundMessages(body)).toEqual([
-      { id: "wamid.1", from: "919876543210", type: "text", phoneNumberId: "PNID", text: "Hiii" },
+      {
+        id: "wamid.1",
+        from: "919876543210",
+        type: "text",
+        phoneNumberId: "PNID",
+        text: "Hiii",
+        profileName: "Ravi",
+        timestamp: "1",
+      },
     ]);
   });
 
@@ -100,8 +111,107 @@ describe("extractInboundMessages", () => {
   });
 });
 
+describe("extractInboundMessages: richer fields", () => {
+  it("carries the customer's profile name, timestamp and the title of a tapped row", () => {
+    const body = payload({
+      metadata: { phone_number_id: "PNID" },
+      contacts: [{ profile: { name: "Ravi Kumar" }, wa_id: "919876543210" }],
+      messages: [
+        {
+          from: "919876543210",
+          id: "wamid.3",
+          timestamp: "1760000000",
+          type: "interactive",
+          interactive: { type: "list_reply", list_reply: { id: "opt_pending", title: "Pending payment" } },
+        },
+      ],
+    });
+
+    expect(extractInboundMessages(body)[0]).toMatchObject({
+      profileName: "Ravi Kumar",
+      timestamp: "1760000000",
+      replyId: "opt_pending",
+      replyTitle: "Pending payment",
+    });
+  });
+});
+
+describe("extractStatuses", () => {
+  it("reads delivery receipts and the reason a send failed", () => {
+    const body = payload({
+      metadata: { phone_number_id: "PNID" },
+      statuses: [
+        { id: "wamid.out1", status: "read", timestamp: "1760000100", recipient_id: "919876543210" },
+        {
+          id: "wamid.out2",
+          status: "failed",
+          timestamp: "1760000200",
+          recipient_id: "919876543211",
+          errors: [{ code: 131047, title: "Re-engagement message", error_data: { details: "More than 24 hours passed" } }],
+        },
+      ],
+    });
+
+    expect(extractStatuses(body)).toEqual([
+      { id: "wamid.out1", status: "read", recipientId: "919876543210", timestamp: "1760000100", error: undefined },
+      {
+        id: "wamid.out2",
+        status: "failed",
+        recipientId: "919876543211",
+        timestamp: "1760000200",
+        error: "Re-engagement message: More than 24 hours passed",
+      },
+    ]);
+  });
+
+  it("returns nothing for a payload with only messages", () => {
+    const body = payload({ messages: [{ from: "91", id: "w", type: "text", text: { body: "hi" } }] });
+    expect(extractStatuses(body)).toEqual([]);
+  });
+});
+
+describe("extractEchoes", () => {
+  it("reads messages typed in the Business app on our number", () => {
+    const body = payload({
+      metadata: { phone_number_id: "PNID" },
+      message_echoes: [{ from: "918506933428", to: "919876543210", id: "wamid.e1", type: "text", text: { body: "On my way" } }],
+    });
+
+    expect(extractEchoes(body)).toEqual([
+      { id: "wamid.e1", to: "919876543210", type: "text", text: "On my way", timestamp: undefined, phoneNumberId: "PNID" },
+    ]);
+  });
+});
+
+describe("extractChanges", () => {
+  it("lists every field untouched, so unknown ones are never dropped", () => {
+    const body = {
+      object: "whatsapp_business_account",
+      entry: [
+        {
+          id: "WABA",
+          changes: [
+            { field: "message_template_status_update", value: { event: "APPROVED" } },
+            { field: "some_future_field", value: { anything: 1 } },
+          ],
+        },
+      ],
+    };
+
+    expect(extractChanges(body)).toEqual([
+      { field: "message_template_status_update", value: { event: "APPROVED" }, entryId: "WABA" },
+      { field: "some_future_field", value: { anything: 1 }, entryId: "WABA" },
+    ]);
+  });
+
+  it("returns nothing for other platforms' payloads", () => {
+    expect(extractChanges({ object: "page", entry: [] })).toEqual([]);
+    expect(extractChanges(null)).toEqual([]);
+  });
+});
+
 /** In-memory stand-in for Redis (SET NX, DEL, counters). */
-function fakeDeps(options: { failReply?: boolean } = {}) {
+function fakeDeps(options: { failReply?: boolean; paused?: boolean } = {}) {
   const keys = new Set<string>();
   const counters = new Map<string, number>();
   const replies: { to: string; intent: Intent }[] = [];
@@ -118,6 +228,9 @@ function fakeDeps(options: { failReply?: boolean } = {}) {
       const next = (counters.get(key) ?? 0) + 1;
       counters.set(key, next);
       return next;
+    },
+    async isPaused() {
+      return options.paused ?? false;
     },
     async reply(message, intent) {
       if (options.failReply) throw new Error("send failed");
@@ -188,6 +301,27 @@ describe("dispatchInbound", () => {
 
     expect(replies).toHaveLength(RATE_LIMIT_MESSAGES);
     expect(results.slice(-3).map((r) => r.outcome)).toEqual(["rate_limited", "rate_limited", "rate_limited"]);
+  });
+
+  it("keeps quiet for hellos and small talk while a person is handling the chat", async () => {
+    const { deps, replies } = fakeDeps({ paused: true });
+    const results = await dispatchInbound(
+      [message({ id: "1", text: "hi" }), message({ id: "2", text: "ok thanks" })],
+      deps,
+    );
+
+    expect(results.map((r) => r.outcome)).toEqual(["paused", "paused"]);
+    expect(replies).toEqual([]);
+  });
+
+  it("still answers explicit requests while a person is handling the chat", async () => {
+    const { deps, replies } = fakeDeps({ paused: true });
+    await dispatchInbound(
+      [message({ id: "1", text: "my invoices" }), message({ id: "2", text: "talk to staff" })],
+      deps,
+    );
+
+    expect(replies.map((r) => r.intent)).toEqual(["invoices", "human"]);
   });
 
   it("ignores reactions and system events", async () => {

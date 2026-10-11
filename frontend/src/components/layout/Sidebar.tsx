@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isNavItemVisible, navItems } from "@/lib/navigation";
+import { useNavBadges } from "@/lib/useNavBadges";
 import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 
 export function Sidebar() {
   const pathname = usePathname();
   const { data: user } = useGetMeQuery();
+  const badgeFor = useNavBadges();
   const items = navItems.filter((item) => isNavItemVisible(item, user?.role));
 
   return (
@@ -15,6 +17,7 @@ export function Sidebar() {
       {items.map((item) => {
         const isActive = pathname.startsWith(item.href);
         const Icon = item.icon;
+        const badge = badgeFor(item);
         return (
           <Link
             key={item.href}
@@ -26,7 +29,17 @@ export function Sidebar() {
             }`}
           >
             <Icon size={18} aria-hidden />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {badge > 0 && (
+              <span
+                className={`min-w-5 rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none ${
+                  isActive ? "bg-background text-primary" : "bg-primary text-primary-foreground"
+                }`}
+                aria-label={`${badge} waiting`}
+              >
+                {badge > 99 ? "99+" : badge}
+              </span>
+            )}
           </Link>
         );
       })}

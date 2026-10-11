@@ -23,6 +23,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { apiLimiter } from "./middleware/rateLimit";
 import { captureWebhookRawBody } from "./middleware/rawBody";
 import { whatsappWebhookRouter } from "./routes/whatsappWebhook.routes";
+import { whatsappChatRouter } from "./routes/whatsappChat.routes";
 
 export function createApp() {
   const app = express();
@@ -50,6 +51,8 @@ export function createApp() {
   // Called by Meta, so deliberately outside /api (no per-IP apiLimiter on
   // Meta's servers); the controller authenticates via verify token + signature.
   app.use("/webhooks/whatsapp", whatsappWebhookRouter);
+  // Before apiLimiter on purpose: authenticated and polled, with its own per-user limits.
+  app.use("/api/whatsapp", whatsappChatRouter);
   app.use("/api", apiLimiter);
   app.use("/api/auth", authRouter);
   app.use("/api/users", userRouter);

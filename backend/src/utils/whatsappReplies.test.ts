@@ -96,6 +96,6 @@ describe("other replies", () => {
     expect(buildMenuBody({ ...base, customerName: "Ravi" })).toContain("Hello Ravi!");
     expect(buildMenuBody(base)).toContain("Hello!");
     expect(buildMenuBody(base)).not.toMatch(/https?:/);
-    expect(buildMenuBody({ ...base, unknown: true })).toContain("didn't understand");
+    expect(buildMenuBody({ ...base, unknown: true })).toContain("team will reply");
   });
 });

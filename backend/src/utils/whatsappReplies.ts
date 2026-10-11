@@ -129,9 +129,16 @@ export function buildContactText(staffName: string | null, lastBillNumber?: stri
   return ["Here is our contact number. Tap the card below to save it or message us.", "", MENU_HINT].join("\n");
 }
 
+export const HUMAN_REQUESTED_TEXT = [
+  "Thank you! A team member will reply to you here shortly.",
+  "",
+  "In the meantime, reply *menu* to see what you can check yourself.",
+].join("\n");
+
 export function buildMenuBody(options: { customerName?: string; companyName: string; tagline: string; unknown: boolean }): string {
   if (options.unknown) {
-    return "Sorry, I didn't understand that. Please choose what you need from the options.";
+    // The message has already been passed to the team (it shows in their inbox).
+    return "Thanks for your message. Our team will reply here soon. Meanwhile, you can choose an option below.";
   }
   const hello = options.customerName ? `Hello ${options.customerName}!` : "Hello!";
   return `${hello} Welcome to ${options.companyName}. ${options.tagline}.\n\nHow can we help you today?`;

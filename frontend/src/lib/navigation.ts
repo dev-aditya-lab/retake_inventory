@@ -14,6 +14,7 @@ import {
   BarChart3,
   Users,
   CircleUser,
+  MessageCircle,
 } from "lucide-react";
 import type { UserRole } from "@/types/auth";
 
@@ -25,6 +26,8 @@ export interface NavItem {
   mobilePriority?: boolean;
   /** Restricts visibility to these roles. Omit to show to everyone. */
   roles?: UserRole[];
+  /** Shows a live count next to the label (see useNavBadges). */
+  badge?: "whatsapp";
 }
 
 export const navItems: NavItem[] = [
@@ -33,6 +36,8 @@ export const navItems: NavItem[] = [
   { label: "Billing", href: "/billing", icon: Receipt, mobilePriority: true },
   { label: "Barcode", href: "/barcode", icon: ScanBarcode, mobilePriority: true },
   { label: "Sales", href: "/sales", icon: ReceiptText },
+  // Customer chats on the shop's WhatsApp number (open to every staff role).
+  { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, badge: "whatsapp" },
   // Bills made without GST — a separate section (overview, bills, customers), never part of the GST returns.
   { label: "Non-GST sales", href: "/non-gst-bills", icon: FileText, roles: ["admin"] },
   // The UPI QR to show a customer who is paying now (staff who bill: admin and sales).

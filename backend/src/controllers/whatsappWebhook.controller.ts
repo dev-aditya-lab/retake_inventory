@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import type { RawBodyRequest } from "../middleware/rawBody";
-import { processWhatsAppWebhook } from "../services/whatsappInbound.service";
+import { answerInbound, ingestWebhook } from "../services/whatsappInbound.service";
 import { safeEqual, verifyWebhookSignature } from "../utils/whatsappWebhook";
 
 /**
@@ -33,11 +33,13 @@ export function verifyWebhook(req: Request, res: Response): void {
 }
 
 /**
- * POST /webhooks/whatsapp — inbound messages and delivery receipts. Meta wants
- * a fast 200 and retries on anything else, so acknowledge first and do the
- * work afterwards.
+ * POST /webhooks/whatsapp — inbound messages, delivery receipts and account
+ * events. Everything is stored BEFORE Meta is answered: a 5xx makes Meta
+ * redeliver (the writes are idempotent), whereas answering first would lose a
+ * customer's message if the database hiccuped. Only the automatic replies,
+ * which are slower, run after the response.
  */
-export function receiveWebhook(req: Request, res: Response): void {
+export async function receiveWebhook(req: Request, res: Response): Promise<void> {
   const secret = env.WHATSAPP_APP_SECRET;
   if (!secret) {
     // Never fall back to accepting unsigned requests: that would let anyone
@@ -54,8 +56,17 @@ export function receiveWebhook(req: Request, res: Response): void {
     return;
   }
 
+  let fresh;
+  try {
+    fresh = await ingestWebhook(req.body);
+  } catch (err) {
+    logger.error({ err }, "WhatsApp webhook could not be stored; asking Meta to redeliver");
+    res.sendStatus(500);
+    return;
+  }
+
   res.sendStatus(200);
-  processWhatsAppWebhook(req.body).catch((err) => {
-    logger.error({ err }, "WhatsApp webhook processing failed");
+  answerInbound(fresh).catch((err) => {
+    logger.error({ err }, "WhatsApp auto-reply processing failed");
   });
 }

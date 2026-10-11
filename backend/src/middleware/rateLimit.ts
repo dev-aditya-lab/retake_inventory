@@ -21,6 +21,31 @@ export const loginLimiter = rateLimit({
   store: redisStore("rl:login:"),
 });
 
+// The WhatsApp section is polled while open (chat list every few seconds, an
+// open thread more often), so it gets a generous budget — per signed-in user,
+// not per IP, because the whole shop usually shares one IP.
+export const whatsappLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 1500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `user:${req.user?.id ?? "unknown"}`,
+  message: { success: false, message: "Too many requests, please slow down" },
+  store: redisStore("rl:wa:"),
+});
+
+// Sending is the one expensive/abusable action: stops a stuck button or script
+// from flooding a customer.
+export const whatsappSendLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `user:${req.user?.id ?? "unknown"}`,
+  message: { success: false, message: "You're sending messages too fast, wait a moment" },
+  store: redisStore("rl:wasend:"),
+});
+
 // Applies to every /api request. Its main job isn't per-user abuse (staff
 // routes are already authenticated + role-gated) but blocking scripted
 // enumeration of the public, unauthenticated invoice-lookup routes — invoice

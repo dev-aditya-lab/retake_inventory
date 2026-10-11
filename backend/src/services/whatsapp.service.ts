@@ -10,8 +10,12 @@ interface SendInvoiceWhatsAppParams {
   invoiceNumber: string;
 }
 
-/** POSTs one message payload to the Cloud API from our configured business number. */
-async function postMessage(payload: Record<string, unknown>): Promise<void> {
+/**
+ * POSTs one message payload to the Cloud API from our configured business
+ * number. Resolves the WhatsApp message id (wamid...) so delivery receipts can
+ * be matched to it later.
+ */
+async function postMessage(payload: Record<string, unknown>): Promise<string | undefined> {
   if (!env.WHATSAPP_PHONE_NUMBER_ID || !env.WHATSAPP_ACCESS_TOKEN) {
     throw ApiError.badRequest("WhatsApp is not configured on this server");
   }
@@ -19,11 +23,12 @@ async function postMessage(payload: Record<string, unknown>): Promise<void> {
   const url = `${env.WHATSAPP_API_URL}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
   try {
-    await axios.post(
+    const response = await axios.post<{ messages?: { id?: string }[] }>(
       url,
       { messaging_product: "whatsapp", ...payload },
       { headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" } },
     );
+    return response.data?.messages?.[0]?.id;
   } catch (err) {
     const message = axios.isAxiosError(err) ? JSON.stringify(err.response?.data ?? err.message) : String(err);
     throw ApiError.badRequest(`WhatsApp send failed: ${message}`);
@@ -68,8 +73,8 @@ export async function sendInvoiceWhatsApp(params: SendInvoiceWhatsAppParams): Pr
  * the customer messages us, so use it for replies, never for cold outreach.
  * `to` is a WhatsApp id (digits with country code), used as-is.
  */
-export async function sendWhatsAppText(to: string, body: string): Promise<void> {
-  await postMessage({ to, type: "text", text: { preview_url: false, body } });
+export async function sendWhatsAppText(to: string, body: string): Promise<string | undefined> {
+  return postMessage({ to, type: "text", text: { preview_url: false, body } });
 }
 
 export interface WhatsAppMenu {
@@ -89,8 +94,8 @@ export interface WhatsAppMenu {
  * interactive message carrying that row's id. Same 24-hour-window rule as
  * sendWhatsAppText.
  */
-export async function sendWhatsAppMenu(to: string, menu: WhatsAppMenu): Promise<void> {
-  await postMessage({
+export async function sendWhatsAppMenu(to: string, menu: WhatsAppMenu): Promise<string | undefined> {
+  return postMessage({
     to,
     type: "interactive",
     interactive: {
@@ -122,8 +127,8 @@ export async function sendWhatsAppContacts(
   to: string,
   contacts: readonly WhatsAppContact[],
   organization: string,
-): Promise<void> {
-  await postMessage({
+): Promise<string | undefined> {
+  return postMessage({
     to,
     type: "contacts",
     contacts: contacts.map((c) => {
