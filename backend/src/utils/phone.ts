@@ -8,6 +8,22 @@ export function normalizeIndianPhone(phone: string): string {
 }
 
 /**
+ * A regular expression (as a string, for MongoDB `$regex`) matching every way a
+ * 10-digit Indian mobile number is typed into a bill: "98765 43210",
+ * "+91-98765-43210", "09876543210", "919876543210". Bills store the phone as
+ * typed, so this is how bills without a customer-directory link are found.
+ * Built from digits only, so it carries no user-controlled regex syntax.
+ * Returns undefined when there are too few digits to be a real number.
+ */
+export function phoneSearchPattern(phone: string | undefined | null): string | undefined {
+  const key = phoneKey(phone);
+  if (!key) return undefined;
+  const national = key.slice(-10);
+  if (national.length < 10) return undefined;
+  return `^\\D*(?:(?:\\+|00)?91\\D*)?0?\\D*${national.split("").join("\\D*")}\\D*$`;
+}
+
+/**
  * Stable lookup key for a customer's phone number — the normalized digits,
  * so "98765 43210", "+91-9876543210" and "09876543210" all match the same
  * customer. Returns undefined when there are too few digits to be a real

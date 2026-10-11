@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeIndianPhone, phoneKey } from "./phone";
+import { normalizeIndianPhone, phoneKey, phoneSearchPattern } from "./phone";
 
 describe("normalizeIndianPhone", () => {
   it("adds the 91 prefix to a bare 10-digit number", () => {
@@ -33,5 +33,26 @@ describe("phoneKey", () => {
     expect(phoneKey("")).toBeUndefined();
     expect(phoneKey("-")).toBeUndefined();
     expect(phoneKey("12345")).toBeUndefined();
+  });
+});
+
+describe("phoneSearchPattern", () => {
+  const pattern = new RegExp(phoneSearchPattern("919876543210")!);
+
+  it("matches every way the number is typed on a bill", () => {
+    for (const typed of ["9876543210", "98765 43210", "+91 98765-43210", "09876543210", "919876543210", " (+91) 98765 43210 "]) {
+      expect(pattern.test(typed), typed).toBe(true);
+    }
+  });
+
+  it("does not match a different number, or one that merely contains these digits", () => {
+    for (const typed of ["9876543211", "98765432109", "19876543210", "1 9876543210 5", ""]) {
+      expect(pattern.test(typed), typed).toBe(false);
+    }
+  });
+
+  it("is undefined when there is no real number", () => {
+    expect(phoneSearchPattern("")).toBeUndefined();
+    expect(phoneSearchPattern("12345")).toBeUndefined();
   });
 });

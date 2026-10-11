@@ -29,12 +29,18 @@ export const company = {
   // 16-character GST limit doesn't apply. Keep the frontend's copy in sync.
   nonGstBillPrefix: "RTKNG",
   countryCode: "890", // EAN-13 country prefix used in the barcode scheme
-  // Contact cards sent automatically when a customer messages our WhatsApp
-  // number. Add one entry per person/team to show, e.g.
+  // Default contact card(s) the WhatsApp auto-reply sends when it can't tie the
+  // customer to a staff member (no bill yet, or that staff member is inactive).
+  // Add more entries to show several, e.g.
   //   { name: "Aditya", role: "Owner", phone: "98765 43210" }
   // Each is sent as a native "save contact" card, so only list numbers that are
   // meant to be public.
   whatsappContacts: [{ name: "Retake", role: "Orders & enquiries", phone: contactNumber, email }],
+  whatsappBot: {
+    // "My invoices" lists each bill with a link to its download page. Set to
+    // false to list number / date / amount / status only, with no links.
+    includeInvoiceLinks: true,
+  },
   // How customers pay. Printed on bills with money still owing (invoice PDFs), next to the
   // payment QR at src/assets/payment-qr.jpeg. Keep the frontend's copy in sync.
   payment: {

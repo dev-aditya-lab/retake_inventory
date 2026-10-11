@@ -72,6 +72,39 @@ export async function sendWhatsAppText(to: string, body: string): Promise<void> 
   await postMessage({ to, type: "text", text: { preview_url: false, body } });
 }
 
+export interface WhatsAppMenu {
+  /** <= 60 chars. */
+  header?: string;
+  /** <= 1024 chars. */
+  body: string;
+  /** Label of the button that opens the list, <= 20 chars. */
+  button: string;
+  sectionTitle: string;
+  /** At most 10 rows; title <= 24 chars, description <= 72. */
+  rows: readonly { id: string; title: string; description?: string }[];
+}
+
+/**
+ * A tap-to-choose list. When the customer picks a row, the webhook receives an
+ * interactive message carrying that row's id. Same 24-hour-window rule as
+ * sendWhatsAppText.
+ */
+export async function sendWhatsAppMenu(to: string, menu: WhatsAppMenu): Promise<void> {
+  await postMessage({
+    to,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      ...(menu.header ? { header: { type: "text", text: menu.header } } : {}),
+      body: { text: menu.body },
+      action: {
+        button: menu.button,
+        sections: [{ title: menu.sectionTitle, rows: menu.rows.map((row) => ({ ...row })) }],
+      },
+    },
+  });
+}
+
 export interface WhatsAppContact {
   name: string;
   /** Job title / what this contact is for, shown on the card. */
