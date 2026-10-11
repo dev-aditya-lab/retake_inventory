@@ -24,6 +24,7 @@ import { apiLimiter } from "./middleware/rateLimit";
 import { captureWebhookRawBody } from "./middleware/rawBody";
 import { whatsappWebhookRouter } from "./routes/whatsappWebhook.routes";
 import { whatsappChatRouter } from "./routes/whatsappChat.routes";
+import { pushRouter } from "./routes/push.routes";
 
 export function createApp() {
   const app = express();
@@ -55,6 +56,7 @@ export function createApp() {
   app.use("/api/whatsapp", whatsappChatRouter);
   app.use("/api", apiLimiter);
   app.use("/api/auth", authRouter);
+  app.use("/api/push", pushRouter);
   app.use("/api/users", userRouter);
   app.use("/api/products", productRouter);
   app.use("/api/carts", cartRouter);

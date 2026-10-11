@@ -29,6 +29,12 @@ const envSchema = z.object({
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_APP_SECRET: z.string().optional(),
   WHATSAPP_APP_ID: z.string().optional(),
+  // Web Push (phone / desktop notifications from the PWA). All three must be
+  // set for push to switch on; generate the key pair with `npx web-push generate-vapid-keys`.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  /** A contact for push services, "mailto:you@example.com" or an https URL. */
+  VAPID_SUBJECT: z.string().optional(),
   WHATSAPP_WEBHOOK_URL: z.string().url().optional(),
 
   RESEND_API_KEY: z.string().optional(),

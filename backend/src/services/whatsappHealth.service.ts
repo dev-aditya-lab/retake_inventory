@@ -3,7 +3,9 @@ import { WhatsappAlert } from "../models/WhatsappAlert.model";
 import { WhatsappEvent } from "../models/WhatsappEvent.model";
 import { WhatsappTemplate } from "../models/WhatsappTemplate.model";
 import { ApiError } from "../utils/ApiError";
+import { alertPush } from "../utils/pushPayload";
 import { interpretChange } from "../utils/whatsappEvents";
+import { notify } from "./push.service";
 
 /**
  * Everything the webhook reports that isn't a chat message: template reviews
@@ -36,6 +38,10 @@ export async function recordChange(field: string, value: unknown, entryId?: stri
 
     if (effect.alert) {
       await WhatsappAlert.create(effect.alert);
+      // Only problems are worth a buzz; approvals and upgrades stay on the health page.
+      if (effect.alert.severity !== "info") {
+        void notify({ roles: ["admin"] }, alertPush({ title: effect.alert.title, detail: effect.alert.detail }));
+      }
     }
 
     await WhatsappEvent.create({ field, entryId, value, outcome: acted ? "processed" : "ignored" });

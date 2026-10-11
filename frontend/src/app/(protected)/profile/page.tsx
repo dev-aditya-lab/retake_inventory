@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useGetMeQuery, useUpdateProfileMutation } from "@/lib/redux/features/auth/authApi";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { NotificationSettings } from "@/components/whatsapp/NotificationSettings";
 import { ROLE_LABELS, type AuthUser } from "@/types/auth";
 
 /** A staff member's own details. The phone is what customers are given on WhatsApp. */
@@ -16,6 +17,11 @@ export default function ProfilePage() {
 
       {isLoading && <p className="mt-6 text-sm text-muted">Loading…</p>}
       {user && <ProfileForm key={user.id} user={user} />}
+      {user && (
+        <div className="mt-4">
+          <NotificationSettings />
+        </div>
+      )}
     </div>
   );
 }

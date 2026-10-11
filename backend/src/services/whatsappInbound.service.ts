@@ -2,6 +2,10 @@ import { company } from "../config/company";
 import { env } from "../config/env";
 import { logger } from "../config/logger";
 import { redis } from "../config/redis";
+import { USER_ROLES } from "../models/User.model";
+import { WhatsappConversation } from "../models/WhatsappConversation.model";
+import { describeInbound } from "../utils/whatsappChat";
+import { chatPush } from "../utils/pushPayload";
 import { detectIntent, MENU_OPTIONS, type Intent } from "../utils/whatsappIntent";
 import {
   buildAddressText,
@@ -27,6 +31,7 @@ import {
 import { isBotPausedFor, recordEcho, recordInbound, recordOutbound, recordStatus } from "./whatsappChat.service";
 import { findCustomerName, findLastHandlingStaff, loadBills } from "./whatsappCustomer.service";
 import { recordChange } from "./whatsappHealth.service";
+import { notify } from "./push.service";
 import { sendWhatsAppContacts, sendWhatsAppMenu, sendWhatsAppText, type WhatsAppContact } from "./whatsapp.service";
 
 /** How many bills the "My invoices" answer lists. */
@@ -182,6 +187,29 @@ const deps: InboundDeps = {
   },
 };
 
+/**
+ * Pushes a phone notification to staff when a customer needs a person: the bot
+ * can't answer them, they asked for staff, or a staff member is already
+ * mid-conversation with them. Menu taps the bot handles are not worth a buzz.
+ * Never throws and is not awaited by the webhook.
+ */
+async function announceToStaff(message: InboundMessage, needsHuman: boolean): Promise<void> {
+  try {
+    if (!needsHuman && !(await isBotPausedFor(message.from))) return;
+
+    const conversation = await WhatsappConversation.findOne({ waId: message.from }).select("_id profileName").lean();
+    if (!conversation) return;
+
+    const customer = (await findCustomerName(message.from)) ?? (conversation.profileName || `+${message.from}`);
+    await notify(
+      { roles: [...USER_ROLES] },
+      chatPush({ customer, preview: describeInbound(message), conversationId: String(conversation._id) }),
+    );
+  } catch (err) {
+    logger.error({ err }, "Could not send a push notification for a customer message");
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The two stages of handling a verified webhook
 // ---------------------------------------------------------------------------
@@ -210,8 +238,12 @@ export async function ingestWebhook(body: unknown): Promise<InboundMessage[]> {
     if (!isConversational(message.type)) continue;
     const intent = detectIntent({ text: message.text, replyId: message.replyId });
     // Free text we can't answer, or an explicit request for a person: the team should look.
-    const isNew = await recordInbound(message, { needsHuman: intent === "unknown" || intent === "human" });
-    if (isNew) fresh.push(message);
+    const needsHuman = intent === "unknown" || intent === "human";
+    const isNew = await recordInbound(message, { needsHuman });
+    if (isNew) {
+      fresh.push(message);
+      void announceToStaff(message, needsHuman); // after the webhook is answered; not awaited
+    }
   }
 
   for (const status of extractStatuses(body)) {

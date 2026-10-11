@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChatList } from "@/components/whatsapp/ChatList";
+import { NotificationPrompt } from "@/components/whatsapp/NotificationSettings";
 import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 import { useGetWhatsappSummaryQuery } from "@/lib/redux/features/whatsapp/whatsappApi";
 
@@ -58,6 +59,8 @@ export default function WhatsappLayout({ children }: { children: React.ReactNode
             </Link>
           ))}
         </nav>
+
+        <NotificationPrompt />
       </div>
 
       {onHealth ? (

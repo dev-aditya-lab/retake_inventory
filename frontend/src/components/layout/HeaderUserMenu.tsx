@@ -3,13 +3,17 @@
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { useGetMeQuery, useLogoutMutation } from "@/lib/redux/features/auth/authApi";
+import { useReleaseDevice } from "@/lib/usePushNotifications";
 
 export function HeaderUserMenu() {
   const router = useRouter();
   const { data: user } = useGetMeQuery();
   const [logout, { isLoading }] = useLogoutMutation();
+  const releaseDevice = useReleaseDevice();
 
   async function handleLogout() {
+    // Stop this device receiving the signed-out person's notifications (needs the session, so first).
+    await releaseDevice();
     await logout();
     router.replace("/login");
   }
