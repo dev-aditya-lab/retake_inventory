@@ -23,7 +23,7 @@ function EditNonGstBill({ billNumber }: { billNumber: string }) {
   return (
     <div className="mx-auto max-w-2xl">
       <Link
-        href="/non-gst-bills"
+        href="/non-gst-bills/bills"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
       >
         <ArrowLeft size={16} aria-hidden />
@@ -45,7 +45,7 @@ function EditNonGstBill({ billNumber }: { billNumber: string }) {
             <Link href={`/invoice/${billNumber}`} target="_blank" className="font-medium text-primary underline">
               View bill
             </Link>
-            <Link href="/non-gst-bills" className="font-medium text-primary underline">
+            <Link href="/non-gst-bills/bills" className="font-medium text-primary underline">
               Back to bills
             </Link>
           </span>

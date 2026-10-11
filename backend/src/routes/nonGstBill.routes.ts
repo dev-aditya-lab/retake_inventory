@@ -11,8 +11,12 @@ export const nonGstBillRouter = Router();
 // billing-counter routes (POST /api/carts/:id/checkout-non-gst).
 nonGstBillRouter.get("/", authenticate, requireRole("admin"), nonGstBillController.listBills);
 
-// Must come before "/:billNumber", which otherwise swallows "export" as a bill number.
+// These fixed paths must come before "/:billNumber", which otherwise swallows
+// "export", "overview" and "customers" as bill numbers.
 nonGstBillRouter.get("/export", authenticate, requireRole("admin"), nonGstBillController.exportBills);
+nonGstBillRouter.get("/overview", authenticate, requireRole("admin"), nonGstBillController.getOverview);
+nonGstBillRouter.get("/customers", authenticate, requireRole("admin"), nonGstBillController.listCustomers);
+nonGstBillRouter.get("/customers/export", authenticate, requireRole("admin"), nonGstBillController.exportCustomers);
 
 // Public — customers open their own bill by number from the link they were sent, no login.
 nonGstBillRouter.get("/:billNumber", nonGstBillController.getBill);

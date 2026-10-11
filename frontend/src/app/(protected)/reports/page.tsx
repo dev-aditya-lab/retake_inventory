@@ -9,65 +9,10 @@ import {
 } from "@/lib/redux/features/reports/reportsApi";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { ExportButtons } from "@/components/ExportButtons";
-import type { DateRangeInput, SalesPeriod } from "@/types/report";
+import { DATE_PRESETS, getPresetRange, type PresetKey } from "@/lib/dateRangePresets";
+import type { SalesPeriod } from "@/types/report";
 
 const currency = (n: number) => `₹${n.toFixed(2)}`;
-
-type PresetKey = "today" | "7d" | "30d" | "90d" | "mtd" | "all";
-
-const PRESETS: { key: PresetKey; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "7d", label: "Last 7 days" },
-  { key: "30d", label: "Last 30 days" },
-  { key: "90d", label: "Last 90 days" },
-  { key: "mtd", label: "Month to date" },
-  { key: "all", label: "All time" },
-];
-
-/**
- * Ranges run to the END of today, not "now": the page re-computes this on
- * every render, and a to-the-millisecond `to` made every render a brand-new
- * query — the report refetched forever and never left "Loading…". End of day
- * is stable all day and still includes bills made later today.
- */
-function getPresetRange(preset: PresetKey): DateRangeInput {
-  const now = new Date();
-  const endOfToday = new Date(now);
-  endOfToday.setHours(23, 59, 59, 999);
-  const to = endOfToday.toISOString();
-
-  switch (preset) {
-    case "today": {
-      const from = new Date(now);
-      from.setHours(0, 0, 0, 0);
-      return { from: from.toISOString(), to };
-    }
-    case "7d": {
-      const from = new Date(now);
-      from.setDate(from.getDate() - 6);
-      from.setHours(0, 0, 0, 0);
-      return { from: from.toISOString(), to };
-    }
-    case "30d": {
-      const from = new Date(now);
-      from.setDate(from.getDate() - 29);
-      from.setHours(0, 0, 0, 0);
-      return { from: from.toISOString(), to };
-    }
-    case "90d": {
-      const from = new Date(now);
-      from.setDate(from.getDate() - 89);
-      from.setHours(0, 0, 0, 0);
-      return { from: from.toISOString(), to };
-    }
-    case "mtd": {
-      const from = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from: from.toISOString(), to };
-    }
-    case "all":
-      return {};
-  }
-}
 
 export default function ReportsPage() {
   const { data: currentUser } = useGetMeQuery();
@@ -107,7 +52,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {PRESETS.map((p) => (
+        {DATE_PRESETS.map((p) => (
           <button
             key={p.key}
             type="button"

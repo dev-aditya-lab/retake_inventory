@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, MessageCircle, Pencil, Search, Trash2, Wallet } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ExternalLink, MessageCircle, Pencil, Search, Trash2, Wallet, X } from "lucide-react";
 import { useListNonGstBillsQuery } from "@/lib/redux/features/nonGstBills/nonGstBillsApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -13,16 +14,22 @@ import { SendWhatsappDialog } from "@/components/sales/SendWhatsappDialog";
 import { CancelNonGstBillDialog } from "@/components/sales/CancelNonGstBillDialog";
 import { PaymentsDialog, type PaymentsTarget } from "@/components/payments/PaymentsDialog";
 import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
+import { NonGstTabs } from "@/components/nonGst/NonGstTabs";
 import { formatCurrency, formatDate, formatDateTime, localDayBoundaryIso } from "@/lib/format";
 import { PAYMENT_FILTER_OPTIONS, type PaymentFilter } from "@/types/payment";
 import type { NonGstBillListItem, NonGstBillStatus } from "@/types/nonGstBill";
 
 const PAGE_SIZE = 20;
 
+const isPaymentFilter = (value: string | null): value is PaymentFilter =>
+  PAYMENT_FILTER_OPTIONS.some((option) => option.value !== "" && option.value === value);
+
 export default function NonGstBillsPage() {
   return (
     <RequireRole roles={["admin"]} message="Only admins can see the non-GST bills.">
-      <NonGstBillsList />
+      <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+        <NonGstBillsList />
+      </Suspense>
     </RequireRole>
   );
 }
@@ -33,11 +40,18 @@ export default function NonGstBillsPage() {
  * or the reports.
  */
 function NonGstBillsList() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const isOnline = useOnlineStatus();
+
+  // "Bills for this customer" (from the Customers tab) and "who owes me" (from Overview) link here.
+  const customerKey = searchParams.get("customer") ?? undefined;
+  const customerName = searchParams.get("name");
+  const linkedPayment = searchParams.get("payment");
 
   const [searchInput, setSearchInput] = useState("");
   const [status, setStatus] = useState<NonGstBillStatus | "">("");
-  const [payment, setPayment] = useState<PaymentFilter | "">("");
+  const [payment, setPayment] = useState<PaymentFilter | "">(isPaymentFilter(linkedPayment) ? linkedPayment : "");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
@@ -52,6 +66,7 @@ function NonGstBillsList() {
       search: search || undefined,
       status: status || undefined,
       payment: payment || undefined,
+      customer: customerKey,
       from: from ? localDayBoundaryIso(from, "start") : undefined,
       to: to ? localDayBoundaryIso(to, "end") : undefined,
       page,
@@ -72,20 +87,31 @@ function NonGstBillsList() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Non-GST bills</h1>
-          <p className="mt-1 text-sm text-muted">
-            Bills made without GST, newest first. They have their own bill numbers and are kept out of the GST returns and
-            reports.
-          </p>
+      <NonGstTabs
+        title="Bills"
+        description="Every bill made without GST, newest first. They have their own bill numbers and are kept out of the GST returns and reports."
+        actions={isOnline && <ExportButtons path="/api/non-gst-bills/export" filenameBase="non-gst-bills" label="Export" />}
+      />
+
+      {customerKey && (
+        <div className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-leaf-200 bg-leaf-50 px-3 py-2 text-sm">
+          <span className="text-foreground">
+            Bills for <span className="font-medium">{customerName ?? "this customer"}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => router.replace("/non-gst-bills/bills")}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-leaf-100"
+          >
+            <X size={14} aria-hidden />
+            Show all
+          </button>
         </div>
-        {isOnline && <ExportButtons path="/api/non-gst-bills/export" filenameBase="non-gst-bills" label="Export" />}
-      </div>
+      )}
 
       {data && (
         <div className="mt-4 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-          <span className="text-muted">{hasFilters ? "Matching bills" : "All bills"}: </span>
+          <span className="text-muted">{hasFilters || customerKey ? "Matching bills" : "All bills"}: </span>
           <span className="font-semibold text-foreground">{formatCurrency(data.totals.amount)}</span>
           <span className="text-muted">
             {" "}
@@ -204,7 +230,7 @@ function NonGstBillsList() {
       )}
       {data && data.items.length === 0 && (
         <p className="mt-6 text-sm text-muted">
-          {hasFilters
+          {hasFilters || customerKey
             ? "No bills match."
             : "No non-GST bills yet. On the Billing screen, untick “GST applicable” to make one."}
         </p>

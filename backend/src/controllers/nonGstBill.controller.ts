@@ -11,7 +11,14 @@ import { normalizeIndianPhone } from "../utils/phone";
 import { env } from "../config/env";
 import { redis } from "../config/redis";
 import type { ExportFormat } from "../services/export.service";
-import { cancelNonGstBillSchema, listNonGstBillsQuerySchema, sendNonGstWhatsappSchema } from "../validators/nonGstBill.validators";
+import * as nonGstAnalytics from "../services/nonGstAnalytics.service";
+import {
+  cancelNonGstBillSchema,
+  listNonGstBillsQuerySchema,
+  listNonGstCustomersQuerySchema,
+  nonGstOverviewQuerySchema,
+  sendNonGstWhatsappSchema,
+} from "../validators/nonGstBill.validators";
 import type { z } from "zod";
 import type { recordPaymentSchema } from "../validators/payment.validators";
 
@@ -35,19 +42,48 @@ export async function checkout(req: Request, res: Response): Promise<void> {
   res.status(201).json({ success: true, data: bill && { ...bill.toJSON(), payment: summarizePayment(bill) } });
 }
 
+/** ?from / ?to as dates. A bare date ("2026-09-22") means "through the end of that day". */
+function parseRange({ from, to }: { from?: string; to?: string }) {
+  return {
+    from: from ? new Date(from) : undefined,
+    to: to ? (to.length === 10 ? new Date(`${to}T23:59:59.999`) : new Date(to)) : undefined,
+  };
+}
+
 export async function listBills(req: Request, res: Response): Promise<void> {
-  const { search, status, payment, from, to, page, limit } = listNonGstBillsQuerySchema.parse(req.query);
+  const { search, status, payment, customer, from, to, page, limit } = listNonGstBillsQuerySchema.parse(req.query);
   const result = await nonGstBillService.listBills({
     search,
     status,
     payment,
-    from: from ? new Date(from) : undefined,
-    // A bare date ("2026-09-22") means "through the end of that day".
-    to: to ? (to.length === 10 ? new Date(`${to}T23:59:59.999`) : new Date(to)) : undefined,
+    customer,
+    ...parseRange({ from, to }),
     page,
     limit,
   });
   res.json({ success: true, data: result });
+}
+
+/** The Overview tab: headline numbers, trend, top products/customers, who owes money. */
+export async function getOverview(req: Request, res: Response): Promise<void> {
+  const { from, to, period } = nonGstOverviewQuerySchema.parse(req.query);
+  const overview = await nonGstAnalytics.getOverview(parseRange({ from, to }), period);
+  res.json({ success: true, data: overview });
+}
+
+export async function listCustomers(req: Request, res: Response): Promise<void> {
+  const { search, sort, due, page, limit } = listNonGstCustomersQuerySchema.parse(req.query);
+  const result = await nonGstAnalytics.listCustomers({ search, sort, dueOnly: due === "true", page, limit });
+  res.json({ success: true, data: result });
+}
+
+export async function exportCustomers(req: Request, res: Response): Promise<void> {
+  const format: ExportFormat = req.query.format === "xlsx" ? "xlsx" : "csv";
+  const buffer = await exportService.exportNonGstCustomers(format);
+  res.setHeader("Content-Disposition", `attachment; filename="non-gst-customers.${format}"`);
+  res
+    .type(format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    .send(buffer);
 }
 
 /** A bill as the screens see it: payment = paid / balance due / status. */

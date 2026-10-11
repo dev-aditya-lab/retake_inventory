@@ -2,11 +2,25 @@ import { z } from "zod";
 import { dateRangeQuerySchema } from "./report.validators";
 import { objectIdSchema, optionalEmailSchema, paginationQuerySchema } from "./common.validators";
 import { paymentFilterSchema } from "./payment.validators";
+import { CUSTOMER_SORTS } from "../utils/nonGstBill";
 
 export const listNonGstBillsQuerySchema = paginationQuerySchema.extend(dateRangeQuerySchema.shape).extend({
   search: z.string().trim().max(100).optional(),
   status: z.enum(["paid", "void"]).optional(),
   payment: paymentFilterSchema.optional(),
+  // A customer key from the Customers tab (last 10 digits of the phone, or "name:<name>").
+  customer: z.string().trim().min(1).max(120).optional(),
+});
+
+export const nonGstOverviewQuerySchema = dateRangeQuerySchema.extend({
+  period: z.enum(["daily", "monthly"]).default("daily"),
+});
+
+export const listNonGstCustomersQuerySchema = paginationQuerySchema.extend({
+  search: z.string().trim().max(100).optional(),
+  sort: z.enum(CUSTOMER_SORTS).default("recent"),
+  // ?due=true — only customers who still owe money.
+  due: z.enum(["true", "false"]).optional(),
 });
 
 export const updateNonGstBillSchema = z.object({

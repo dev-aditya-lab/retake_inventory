@@ -33,8 +33,8 @@ export const navItems: NavItem[] = [
   { label: "Billing", href: "/billing", icon: Receipt, mobilePriority: true },
   { label: "Barcode", href: "/barcode", icon: ScanBarcode, mobilePriority: true },
   { label: "Sales", href: "/sales", icon: ReceiptText },
-  // Bills made without GST — a separate section, never part of the GST returns.
-  { label: "Non-GST bills", href: "/non-gst-bills", icon: FileText, roles: ["admin"] },
+  // Bills made without GST — a separate section (overview, bills, customers), never part of the GST returns.
+  { label: "Non-GST sales", href: "/non-gst-bills", icon: FileText, roles: ["admin"] },
   // The UPI QR to show a customer who is paying now (staff who bill: admin and sales).
   { label: "Payment QR", href: "/payment-qr", icon: QrCode, roles: ["admin", "sales"] },
   { label: "GST", href: "/gst", icon: Landmark, roles: ["admin"] },

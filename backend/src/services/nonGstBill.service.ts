@@ -5,7 +5,7 @@ import { Product } from "../models/Product.model";
 import { StockMovement } from "../models/StockMovement.model";
 import { ApiError } from "../utils/ApiError";
 import { computeStockDeltas } from "../utils/invoiceEdit";
-import { computeNonGstTotals, nonGstPriceFor, priceListLabel } from "../utils/nonGstBill";
+import { computeNonGstTotals, NON_GST_CUSTOMER_KEY_EXPR, nonGstPriceFor, priceListLabel } from "../utils/nonGstBill";
 import { numberToWordsINR } from "../utils/numberToWords";
 import { buildOpeningPayment, paymentFilterQuery, summarizePayment, type PaymentFilter } from "../utils/payments";
 import { dueSummary } from "./payment.service";
@@ -150,14 +150,21 @@ export interface NonGstBillListFilters {
   status?: NonGstBillStatus;
   /** Only bills in this payment state (still owing, overdue, settled…). */
   payment?: PaymentFilter;
+  /** One customer's bills — a key from the Customers tab. */
+  customer?: string;
   from?: Date;
   to?: Date;
   page: number;
   limit: number;
 }
 
-export async function listBills({ search, status, payment, from, to, page, limit }: NonGstBillListFilters) {
+export async function listBills({ search, status, payment, customer, from, to, page, limit }: NonGstBillListFilters) {
   const query: Record<string, unknown> = {};
+  // Kept under $and: the payment filter below already uses a top-level $expr.
+  const customerMatch: Record<string, unknown> = customer
+    ? { $and: [{ $expr: { $eq: [NON_GST_CUSTOMER_KEY_EXPR, customer] } }] }
+    : {};
+  Object.assign(query, customerMatch);
   if (status) query.status = status;
   if (payment) Object.assign(query, paymentFilterQuery(payment));
   if (from || to) {
@@ -194,8 +201,8 @@ export async function listBills({ search, status, payment, from, to, page, limit
   ]);
 
   return {
-    // Money still to collect across all non-GST bills — not just this page.
-    dues: await dueSummary(NonGstBill),
+    // Money still to collect across all non-GST bills (or one customer's) — not just this page.
+    dues: await dueSummary(NonGstBill, customerMatch),
     items: bills.map(({ items, ...bill }) => ({
       ...bill,
       payment: summarizePayment(bill),

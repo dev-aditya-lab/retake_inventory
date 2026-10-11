@@ -7,6 +7,7 @@ import { toCsv } from "../utils/csv";
 import { istDayKey } from "../utils/istDate";
 import { summarizePayment } from "../utils/payments";
 import type { DateRange } from "./report.service";
+import { allCustomers as allNonGstCustomers } from "./nonGstAnalytics.service";
 
 export type ExportFormat = "csv" | "xlsx";
 
@@ -208,6 +209,39 @@ export async function exportNonGstBills(format: ExportFormat, range: DateRange):
     );
   }
   return buildWorkbookBuffer("Non-GST bills", NON_GST_BILL_COLUMNS, rows);
+}
+
+const NON_GST_CUSTOMER_COLUMNS: ColumnDef[] = [
+  { header: "Customer", key: "name", width: 24 },
+  { header: "Phone", key: "phone", width: 16 },
+  { header: "Company", key: "company", width: 22 },
+  { header: "Bills", key: "billCount", width: 8 },
+  { header: "Total Sales", key: "totalSales", width: 14 },
+  { header: "Paid", key: "collected", width: 12 },
+  { header: "Owes", key: "due", width: 12 },
+  { header: "Overdue", key: "overdue", width: 12 },
+  { header: "First Bill", key: "firstBillAt", width: 12 },
+  { header: "Last Bill", key: "lastBillAt", width: 12 },
+];
+
+export async function exportNonGstCustomers(format: ExportFormat): Promise<Buffer> {
+  const customers = await allNonGstCustomers();
+  const rows = customers.map((customer) => ({
+    ...customer,
+    firstBillAt: istDayKey(customer.firstBillAt),
+    lastBillAt: istDayKey(customer.lastBillAt),
+  }));
+
+  if (format === "csv") {
+    return Buffer.from(
+      toCsv(
+        rows,
+        NON_GST_CUSTOMER_COLUMNS.map((c) => c.key),
+      ),
+      "utf-8",
+    );
+  }
+  return buildWorkbookBuffer("Non-GST customers", NON_GST_CUSTOMER_COLUMNS, rows);
 }
 
 const STOCK_MOVEMENT_COLUMNS: ColumnDef[] = [

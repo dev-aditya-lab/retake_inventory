@@ -3,6 +3,12 @@ import type { NonGstBill, NonGstBillListItem, NonGstBillStatus, PriceList } from
 import type { InvoiceCustomer } from "@/types/invoice";
 import type { Paginated } from "@/types/pagination";
 import type { DueSummary, PaymentFilter } from "@/types/payment";
+import type {
+  NonGstCustomerPage,
+  NonGstCustomerSort,
+  NonGstOverview,
+  NonGstTrendPeriod,
+} from "@/types/nonGstOverview";
 import type { RecordPaymentInput } from "../invoices/invoicesApi";
 
 export interface NonGstBillListFilters {
@@ -10,9 +16,27 @@ export interface NonGstBillListFilters {
   status?: NonGstBillStatus;
   /** Only bills in this payment state (still owing, overdue, settled…). */
   payment?: PaymentFilter;
+  /** One customer's bills — a `key` from the Customers tab. */
+  customer?: string;
   /** ISO datetimes (start/end of the chosen local days). */
   from?: string;
   to?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface NonGstOverviewQuery {
+  period: NonGstTrendPeriod;
+  /** ISO datetimes; both left out = all time. */
+  from?: string;
+  to?: string;
+}
+
+export interface NonGstCustomerFilters {
+  search?: string;
+  sort?: NonGstCustomerSort;
+  /** Only customers who still owe money. */
+  due?: boolean;
   page?: number;
   limit?: number;
 }
@@ -33,7 +57,7 @@ export interface UpdateNonGstBillInput {
   note?: string;
 }
 
-function toQueryString(filters: NonGstBillListFilters): string {
+function toQueryString(filters: NonGstBillListFilters | NonGstOverviewQuery | NonGstCustomerFilters): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== "") params.set(key, String(value));
@@ -65,6 +89,18 @@ export const nonGstBillsApi = apiSlice.injectEndpoints({
     listNonGstBills: builder.query<NonGstBillPage, NonGstBillListFilters>({
       query: (filters) => `/api/non-gst-bills${toQueryString(filters)}`,
       transformResponse: unwrap<NonGstBillPage>,
+      providesTags: [{ type: "NonGstBill", id: "LIST" }],
+    }),
+    // Overview and customers are worked out from the bills, so any bill change
+    // (a payment, an edit, a cancellation) refreshes them through the LIST tag.
+    getNonGstOverview: builder.query<NonGstOverview, NonGstOverviewQuery>({
+      query: (filters) => `/api/non-gst-bills/overview${toQueryString(filters)}`,
+      transformResponse: unwrap<NonGstOverview>,
+      providesTags: [{ type: "NonGstBill", id: "LIST" }],
+    }),
+    listNonGstCustomers: builder.query<NonGstCustomerPage, NonGstCustomerFilters>({
+      query: (filters) => `/api/non-gst-bills/customers${toQueryString(filters)}`,
+      transformResponse: unwrap<NonGstCustomerPage>,
       providesTags: [{ type: "NonGstBill", id: "LIST" }],
     }),
     updateNonGstBill: builder.mutation<NonGstBill, UpdateNonGstBillInput>({
@@ -117,6 +153,8 @@ export const nonGstBillsApi = apiSlice.injectEndpoints({
 export const {
   useGetNonGstBillQuery,
   useListNonGstBillsQuery,
+  useGetNonGstOverviewQuery,
+  useListNonGstCustomersQuery,
   useUpdateNonGstBillMutation,
   useCancelNonGstBillMutation,
   useRecordNonGstBillPaymentMutation,
