@@ -1,5 +1,8 @@
 // Centralized brand/company details. Every invoice, PDF, WhatsApp template and
 // footer should read from here instead of hardcoding company info elsewhere.
+const contactNumber = "+91 8506933428";
+const email = "retake@devaditya.dev";
+
 export const company = {
   name: "Retake",
   tagline: "Spice up your kitchen",
@@ -9,8 +12,8 @@ export const company = {
   state: "Jharkhand",
   pincode: "816101",
   country: "India",
-  contactNumber: "+91 8506933428",
-  email: "retake@devaditya.dev",
+  contactNumber,
+  email,
   gstin: "20DQZPG0668A1Z0",
   // GST state code of the registration — must match the GSTIN's first two
   // digits (checked on startup). Decides CGST+SGST vs IGST on every bill.
@@ -26,6 +29,12 @@ export const company = {
   // 16-character GST limit doesn't apply. Keep the frontend's copy in sync.
   nonGstBillPrefix: "RTKNG",
   countryCode: "890", // EAN-13 country prefix used in the barcode scheme
+  // Contact cards sent automatically when a customer messages our WhatsApp
+  // number. Add one entry per person/team to show, e.g.
+  //   { name: "Aditya", role: "Owner", phone: "98765 43210" }
+  // Each is sent as a native "save contact" card, so only list numbers that are
+  // meant to be public.
+  whatsappContacts: [{ name: "Retake", role: "Orders & enquiries", phone: contactNumber, email }],
   // How customers pay. Printed on bills with money still owing (invoice PDFs), next to the
   // payment QR at src/assets/payment-qr.jpeg. Keep the frontend's copy in sync.
   payment: {

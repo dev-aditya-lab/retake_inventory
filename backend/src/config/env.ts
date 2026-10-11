@@ -23,6 +23,13 @@ const envSchema = z.object({
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
   WHATSAPP_API_URL: z.string().url().default("https://graph.facebook.com/v22.0"),
+  // Inbound webhook (/webhooks/whatsapp). VERIFY_TOKEN is any random string you
+  // choose and paste into Meta's webhook settings; APP_SECRET is the Meta app's
+  // secret (App settings -> Basic), used to check each request's signature.
+  WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+  WHATSAPP_APP_SECRET: z.string().optional(),
+  WHATSAPP_APP_ID: z.string().optional(),
+  WHATSAPP_WEBHOOK_URL: z.string().url().optional(),
 
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().email().optional(),

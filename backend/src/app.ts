@@ -21,6 +21,8 @@ import { gstRouter } from "./routes/gst.routes";
 import { creditNoteRouter } from "./routes/creditNote.routes";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { apiLimiter } from "./middleware/rateLimit";
+import { captureWebhookRawBody } from "./middleware/rawBody";
+import { whatsappWebhookRouter } from "./routes/whatsappWebhook.routes";
 
 export function createApp() {
   const app = express();
@@ -39,12 +41,15 @@ export function createApp() {
     }),
   );
   app.use(compression());
-  app.use(express.json({ limit: "2mb" }));
+  app.use(express.json({ limit: "2mb", verify: captureWebhookRawBody }));
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use(pinoHttp({ logger }));
 
   app.use("/health", healthRouter);
+  // Called by Meta, so deliberately outside /api (no per-IP apiLimiter on
+  // Meta's servers); the controller authenticates via verify token + signature.
+  app.use("/webhooks/whatsapp", whatsappWebhookRouter);
   app.use("/api", apiLimiter);
   app.use("/api/auth", authRouter);
   app.use("/api/users", userRouter);
