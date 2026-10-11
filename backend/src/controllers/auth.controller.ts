@@ -32,3 +32,27 @@ export async function me(req: Request, res: Response): Promise<void> {
   }
   res.json({ success: true, data: serializeUser(user) });
 }
+
+/** A staff member edits their own name / phone. The body is already limited by updateProfileSchema. */
+export async function updateMe(req: Request, res: Response): Promise<void> {
+  const { name, phone } = req.body as { name?: string; phone?: string };
+
+  const $set: Record<string, string> = {};
+  const $unset: Record<string, 1> = {};
+  if (name !== undefined) $set.name = name;
+  if (phone === "") $unset.phone = 1; // cleared: customers get the shop's main number instead
+  else if (phone !== undefined) $set.phone = phone;
+
+  const user = await User.findByIdAndUpdate(
+    req.user?.id,
+    {
+      ...(Object.keys($set).length > 0 ? { $set } : {}),
+      ...(Object.keys($unset).length > 0 ? { $unset } : {}),
+    },
+    { returnDocument: "after", runValidators: true },
+  );
+  if (!user) {
+    throw ApiError.unauthorized("Session invalid");
+  }
+  res.json({ success: true, data: serializeUser(user) });
+}

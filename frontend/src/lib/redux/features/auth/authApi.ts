@@ -13,6 +13,12 @@ export const authApi = apiSlice.injectEndpoints({
       transformResponse: unwrap<AuthUser>,
       invalidatesTags: ["User"],
     }),
+    // A staff member editing their own name / phone. An empty phone clears it.
+    updateProfile: builder.mutation<AuthUser, { name?: string; phone?: string }>({
+      query: (body) => ({ url: "/api/auth/me", method: "PATCH", body }),
+      transformResponse: unwrap<AuthUser>,
+      invalidatesTags: ["User"],
+    }),
     logout: builder.mutation<void, void>({
       query: () => ({ url: "/api/auth/logout", method: "POST" }),
       transformResponse: (_response: ApiEnvelope<null>) => undefined,
@@ -21,4 +27,4 @@ export const authApi = apiSlice.injectEndpoints({
   }),
 });
 
-export const { useGetMeQuery, useLoginMutation, useLogoutMutation } = authApi;
+export const { useGetMeQuery, useLoginMutation, useUpdateProfileMutation, useLogoutMutation } = authApi;

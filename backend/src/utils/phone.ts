@@ -8,6 +8,19 @@ export function normalizeIndianPhone(phone: string): string {
 }
 
 /**
+ * The 10-digit national number of an Indian mobile ("98765 43210",
+ * "+91 98765-43210", "09876543210" all give "9876543210"), or undefined if the
+ * input is not one. Indian mobiles start with 6-9, which also rejects landline
+ * and mistyped numbers.
+ */
+export function indianMobile(phone: string | undefined | null): string | undefined {
+  const key = phoneKey(phone);
+  if (!key || key.length !== 12 || !key.startsWith("91")) return undefined;
+  const national = key.slice(2);
+  return /^[6-9]\d{9}$/.test(national) ? national : undefined;
+}
+
+/**
  * A regular expression (as a string, for MongoDB `$regex`) matching every way a
  * 10-digit Indian mobile number is typed into a bill: "98765 43210",
  * "+91-98765-43210", "09876543210", "919876543210". Bills store the phone as

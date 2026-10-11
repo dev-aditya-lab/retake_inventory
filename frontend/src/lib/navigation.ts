@@ -13,6 +13,7 @@ import {
   Landmark,
   BarChart3,
   Users,
+  CircleUser,
 } from "lucide-react";
 import type { UserRole } from "@/types/auth";
 
@@ -42,6 +43,8 @@ export const navItems: NavItem[] = [
   { label: "HSN codes", href: "/hsn-codes", icon: Hash, roles: ["admin"] },
   { label: "Reports", href: "/reports", icon: BarChart3, roles: ["admin"] },
   { label: "Staff", href: "/staff", icon: Users, roles: ["admin"] },
+  // Every signed-in user: their own name and the phone number customers are given.
+  { label: "My profile", href: "/profile", icon: CircleUser },
 ];
 
 export function isNavItemVisible(item: NavItem, role: UserRole | undefined): boolean {

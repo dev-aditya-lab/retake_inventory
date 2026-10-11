@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeIndianPhone, phoneKey, phoneSearchPattern } from "./phone";
+import { indianMobile, normalizeIndianPhone, phoneKey, phoneSearchPattern } from "./phone";
 
 describe("normalizeIndianPhone", () => {
   it("adds the 91 prefix to a bare 10-digit number", () => {
@@ -33,6 +33,21 @@ describe("phoneKey", () => {
     expect(phoneKey("")).toBeUndefined();
     expect(phoneKey("-")).toBeUndefined();
     expect(phoneKey("12345")).toBeUndefined();
+  });
+});
+
+describe("indianMobile", () => {
+  it("gives the bare 10 digits for every way a mobile is typed", () => {
+    for (const typed of ["9876543210", "98765 43210", "+91 98765-43210", "09876543210", "919876543210"]) {
+      expect(indianMobile(typed), typed).toBe("9876543210");
+    }
+  });
+
+  it("rejects anything that is not an Indian mobile", () => {
+    for (const typed of ["", "12345", "5876543210", "0612345678", "98765432", "98765432109", "+1 415 555 0100"]) {
+      expect(indianMobile(typed), typed).toBeUndefined();
+    }
+    expect(indianMobile(undefined)).toBeUndefined();
   });
 });
 
