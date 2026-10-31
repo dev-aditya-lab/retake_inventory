@@ -12,6 +12,8 @@ export const threadQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(300).default(50),
 });
 
+export const setServiceSchema = z.object({ enabled: z.boolean() });
+
 export const sendChatMessageSchema = z.object({
   text: z.string().max(MAX_TEXT_LENGTH, `Messages can be at most ${MAX_TEXT_LENGTH} characters`),
 });

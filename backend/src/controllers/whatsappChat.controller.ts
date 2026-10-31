@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
 import * as chatService from "../services/whatsappChat.service";
 import * as healthService from "../services/whatsappHealth.service";
+import { setWhatsappEnabled } from "../services/whatsappSettings.service";
 import { ApiError } from "../utils/ApiError";
 import { objectIdSchema } from "../validators/common.validators";
 import {
   listChatsQuerySchema,
   sendChatMessageSchema,
+  setServiceSchema,
   threadQuerySchema,
 } from "../validators/whatsappChat.validators";
 
@@ -42,6 +44,12 @@ export async function sendChatMessage(req: Request, res: Response): Promise<void
   const { text } = sendChatMessageSchema.parse(req.body);
   await chatService.sendReply(userId(req), id, text);
   res.status(201).json({ success: true, data: null });
+}
+
+export async function setServiceEnabled(req: Request, res: Response): Promise<void> {
+  const { enabled } = setServiceSchema.parse(req.body);
+  await setWhatsappEnabled(enabled, userId(req));
+  res.json({ success: true, data: { enabled } });
 }
 
 export async function health(_req: Request, res: Response): Promise<void> {

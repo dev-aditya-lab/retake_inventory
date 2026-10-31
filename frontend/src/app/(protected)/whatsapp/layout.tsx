@@ -60,6 +60,13 @@ export default function WhatsappLayout({ children }: { children: React.ReactNode
           ))}
         </nav>
 
+        {summary?.serviceEnabled === false && (
+          <div role="status" className="mt-3 rounded-lg border border-chilli-200 bg-chilli-50 px-3 py-2 text-sm text-chilli-800">
+            The WhatsApp service is turned off. Nothing is sent and incoming messages are ignored.
+            {isAdmin ? " Turn it back on under Account health." : " Ask an admin to turn it back on."}
+          </div>
+        )}
+
         <NotificationPrompt />
       </div>
 

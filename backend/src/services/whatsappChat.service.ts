@@ -22,6 +22,7 @@ import {
 } from "../utils/whatsappChat";
 import type { EchoMessage, InboundMessage, StatusEvent } from "../utils/whatsappWebhook";
 import { sendWhatsAppText } from "./whatsapp.service";
+import { isWhatsappEnabled } from "./whatsappSettings.service";
 
 /**
  * The in-app chat: stores every customer message and every reply (ours, the
@@ -342,5 +343,5 @@ export async function getSummary(includeAlerts: boolean) {
       ? WhatsappAlert.countDocuments({ acknowledgedAt: { $exists: false }, severity: { $ne: "info" } })
       : Promise.resolve(0),
   ]);
-  return { unreadChats, needsReply, openAlerts };
+  return { unreadChats, needsReply, openAlerts, serviceEnabled: await isWhatsappEnabled() };
 }

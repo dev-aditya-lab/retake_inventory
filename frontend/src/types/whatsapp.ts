@@ -58,6 +58,8 @@ export interface WhatsappSummary {
   needsReply: number;
   /** Admins only; 0 for everyone else. */
   openAlerts: number;
+  /** The admin master switch. When false nothing is sent and incoming messages are ignored. */
+  serviceEnabled: boolean;
 }
 
 export type AlertSeverity = "info" | "warning" | "critical";

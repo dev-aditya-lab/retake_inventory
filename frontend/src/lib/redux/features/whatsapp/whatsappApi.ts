@@ -49,6 +49,11 @@ export const whatsappApi = apiSlice.injectEndpoints({
       transformResponse: done,
       invalidatesTags: ["Whatsapp"],
     }),
+    setWhatsappService: builder.mutation<void, boolean>({
+      query: (enabled) => ({ url: "/api/whatsapp/settings", method: "PUT", body: { enabled } }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
     getWhatsappHealth: builder.query<WhatsappHealth, void>({
       query: () => "/api/whatsapp/health",
       transformResponse: unwrap<WhatsappHealth>,
@@ -69,5 +74,6 @@ export const {
   useMarkChatReadMutation,
   useSendChatMessageMutation,
   useGetWhatsappHealthQuery,
+  useSetWhatsappServiceMutation,
   useAcknowledgeAlertMutation,
 } = whatsappApi;

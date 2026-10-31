@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Check, CheckCheck, CircleAlert, Lock, Send } from "lucide-react";
 import {
   useGetChatQuery,
+  useGetWhatsappSummaryQuery,
   useMarkChatReadMutation,
   useSendChatMessageMutation,
 } from "@/lib/redux/features/whatsapp/whatsappApi";
@@ -26,6 +27,8 @@ export function ChatThreadView({ id }: { id: string }) {
     { id, limit },
     { pollingInterval: POLL_MS, skipPollingIfUnfocused: true },
   );
+  const { data: summary } = useGetWhatsappSummaryQuery();
+  const serviceOff = summary?.serviceEnabled === false;
   const [markRead] = useMarkChatReadMutation();
   const [sendMessage, { isLoading: sending }] = useSendChatMessageMutation();
 
@@ -181,7 +184,12 @@ export function ChatThreadView({ id }: { id: string }) {
         </ol>
       </div>
 
-      {conversation.windowOpen ? (
+      {serviceOff ? (
+        <div className="flex items-start gap-2 border-t border-border bg-background p-3 text-sm text-muted">
+          <Lock size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <p>The WhatsApp service is turned off, so messages can&apos;t be sent right now.</p>
+        </div>
+      ) : conversation.windowOpen ? (
         <form onSubmit={handleSend} className="border-t border-border bg-background p-2">
           {sendError && (
             <p role="alert" className="mb-2 px-1 text-sm text-danger">

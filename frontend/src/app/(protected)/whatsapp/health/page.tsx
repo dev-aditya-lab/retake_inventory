@@ -6,6 +6,8 @@ import { formatDateTime } from "@/lib/format";
 import {
   useAcknowledgeAlertMutation,
   useGetWhatsappHealthQuery,
+  useGetWhatsappSummaryQuery,
+  useSetWhatsappServiceMutation,
 } from "@/lib/redux/features/whatsapp/whatsappApi";
 import type { AlertSeverity, WhatsappAlert, WhatsappTemplate } from "@/types/whatsapp";
 import { useState } from "react";
@@ -18,6 +20,60 @@ export default function WhatsappHealthPage() {
     <RequireRole roles={["admin"]} message="Only admins can see the WhatsApp account health.">
       <HealthPanels />
     </RequireRole>
+  );
+}
+
+/** The master switch: off stops automatic replies and all sending, and ignores incoming messages. */
+function ServiceSwitch() {
+  const { data: summary } = useGetWhatsappSummaryQuery();
+  const [setService, { isLoading }] = useSetWhatsappServiceMutation();
+  const [error, setError] = useState<string | null>(null);
+
+  if (!summary) return null;
+  const on = summary.serviceEnabled;
+
+  async function toggle() {
+    setError(null);
+    if (on && !window.confirm("Turn the WhatsApp service off? Customers get no automatic replies, staff can't send, and incoming messages are ignored until you turn it back on.")) return;
+    try {
+      await setService(!on).unwrap();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Couldn't change the setting. Try again."));
+    }
+  }
+
+  return (
+    <section aria-labelledby="service-heading" className="rounded-lg border border-border bg-background p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-56">
+          <h2 id="service-heading" className="text-base font-semibold text-foreground">
+            WhatsApp service: {on ? "On" : "Off"}
+          </h2>
+          <p className="mt-0.5 text-sm text-muted">
+            {on
+              ? "Customers get automatic replies and staff can send messages."
+              : "Nothing is sent (replies, chats and bill sharing) and incoming messages are ignored."}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          onClick={toggle}
+          disabled={isLoading}
+          className={`rounded-md px-4 py-2.5 text-sm font-medium disabled:opacity-60 ${
+            on ? "border border-border bg-background text-foreground hover:bg-ink-100" : "bg-primary text-primary-foreground"
+          }`}
+        >
+          {isLoading ? "Saving…" : on ? "Turn off" : "Turn on"}
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -43,6 +99,8 @@ function HealthPanels() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
+      <ServiceSwitch />
+
       {open.length > 0 && (
         <div role="status" className="rounded-lg border border-chilli-200 bg-chilli-50 p-3 text-sm text-chilli-800">
           {open.length} thing{open.length === 1 ? "" : "s"} need{open.length === 1 ? "s" : ""} your attention. Review{" "}

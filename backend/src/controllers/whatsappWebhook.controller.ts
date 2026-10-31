@@ -3,6 +3,7 @@ import { env } from "../config/env";
 import { logger } from "../config/logger";
 import type { RawBodyRequest } from "../middleware/rawBody";
 import { answerInbound, ingestWebhook } from "../services/whatsappInbound.service";
+import { isWhatsappEnabled } from "../services/whatsappSettings.service";
 import { safeEqual, verifyWebhookSignature } from "../utils/whatsappWebhook";
 
 /**
@@ -53,6 +54,18 @@ export async function receiveWebhook(req: Request, res: Response): Promise<void>
   if (!verifyWebhookSignature((req as RawBodyRequest).rawBody, signature, secret)) {
     logger.warn("WhatsApp webhook rejected: invalid signature");
     res.sendStatus(401);
+    return;
+  }
+
+  // Switched off by an admin: tell Meta "received" (so it doesn't keep retrying) and do nothing.
+  try {
+    if (!(await isWhatsappEnabled())) {
+      res.sendStatus(200);
+      return;
+    }
+  } catch (err) {
+    logger.error({ err }, "Could not read the WhatsApp on/off switch; asking Meta to redeliver");
+    res.sendStatus(500);
     return;
   }
 

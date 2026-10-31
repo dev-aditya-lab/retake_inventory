@@ -22,5 +22,6 @@ whatsappChatRouter.post("/chats/:id/read", chatController.markChatRead);
 whatsappChatRouter.post("/chats/:id/messages", whatsappSendLimiter, chatController.sendChatMessage);
 
 const adminOnly = requireRole("admin");
+whatsappChatRouter.put("/settings", adminOnly, chatController.setServiceEnabled);
 whatsappChatRouter.get("/health", adminOnly, chatController.health);
 whatsappChatRouter.post("/alerts/:id/acknowledge", adminOnly, chatController.acknowledgeAlert);

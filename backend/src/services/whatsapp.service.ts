@@ -2,6 +2,7 @@ import axios from "axios";
 import { env } from "../config/env";
 import { ApiError } from "../utils/ApiError";
 import { normalizeIndianPhone } from "../utils/phone";
+import { isWhatsappEnabled } from "./whatsappSettings.service";
 
 interface SendInvoiceWhatsAppParams {
   phone: string;
@@ -16,6 +17,9 @@ interface SendInvoiceWhatsAppParams {
  * be matched to it later.
  */
 async function postMessage(payload: Record<string, unknown>): Promise<string | undefined> {
+  if (!(await isWhatsappEnabled())) {
+    throw ApiError.badRequest("The WhatsApp service is turned off");
+  }
   if (!env.WHATSAPP_PHONE_NUMBER_ID || !env.WHATSAPP_ACCESS_TOKEN) {
     throw ApiError.badRequest("WhatsApp is not configured on this server");
   }
