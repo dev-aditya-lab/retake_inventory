@@ -1,6 +1,7 @@
 import { graph } from "./metaGraph.service";
 import { getWhatsappConfig, recordConnectionCheck } from "./whatsappConfig.service";
 import { ApiError } from "../utils/ApiError";
+import { listSubscribedApps } from "../utils/metaGraph";
 
 /**
  * "Is this set up right?" for the admin settings screen: asks Meta about the
@@ -76,14 +77,23 @@ export async function testConnection(): Promise<ConnectionResult> {
       checks.push({ key: "account", label: "Business account", ok: true, detail: account.name || "Connected" });
 
       try {
-        const subscribed = await graph<{ data?: unknown[] }>("GET", `${config.businessAccountId}/subscribed_apps`, { config });
-        const on = (subscribed.data?.length ?? 0) > 0;
-        checks.push({
-          key: "webhook",
-          label: "Incoming messages",
-          ok: on,
-          detail: on ? "The app is subscribed to this account's webhooks" : "The app is not subscribed yet. Use “Subscribe to messages”.",
-        });
+        const subscribed = listSubscribedApps(
+          await graph("GET", `${config.businessAccountId}/subscribed_apps`, { config }),
+        );
+        const appId = await ownAppId(config);
+        const ours = appId ? subscribed.some((a) => a.id === appId) : subscribed.length > 0;
+        const others = subscribed.filter((a) => a.id !== appId).map((a) => a.name || a.id);
+
+        let detail = "This app is subscribed to the account's webhooks";
+        if (!ours) {
+          detail =
+            others.length > 0
+              ? `Only other apps are subscribed (${others.join(", ")}), not this one, so customer messages don't reach it. Use "Subscribe to messages".`
+              : 'No app is subscribed yet. Use "Subscribe to messages".';
+        } else if (!appId) {
+          detail = "An app is subscribed (couldn't confirm it is this one: add the App ID to be sure)";
+        }
+        checks.push({ key: "webhook", label: "Incoming messages", ok: ours, detail });
       } catch (err) {
         checks.push({ key: "webhook", label: "Incoming messages", ok: false, detail: reason(err) });
       }
@@ -93,6 +103,20 @@ export async function testConnection(): Promise<ConnectionResult> {
   }
 
   return { ok: checks.every((c) => c.ok), checks, phone };
+}
+
+/** The Meta app the access token belongs to (the one "Subscribe" would subscribe), else the App ID entered in settings. */
+async function ownAppId(config: Awaited<ReturnType<typeof getWhatsappConfig>>): Promise<string | undefined> {
+  try {
+    const info = await graph<{ data?: { app_id?: string } }>("GET", "debug_token", {
+      config,
+      params: { input_token: config.accessToken },
+    });
+    if (info.data?.app_id) return String(info.data.app_id);
+  } catch {
+    // Some tokens can't be inspected; fall back to the configured App ID.
+  }
+  return config.appId;
 }
 
 /** Subscribes the Meta app to the business account's webhooks so customer messages reach us. */

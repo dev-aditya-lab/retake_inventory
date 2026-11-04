@@ -39,3 +39,18 @@ export function isTokenError(body: unknown): boolean {
   const code = (body as GraphErrorBody | undefined)?.error?.code;
   return code === 190 || code === "190";
 }
+
+export interface SubscribedApp {
+  whatsapp_business_api_data?: { id?: unknown; name?: unknown };
+}
+
+/** What `GET /{waba}/subscribed_apps` lists, reduced to id and name (the rest is Meta's own bookkeeping). */
+export function listSubscribedApps(body: unknown): { id: string; name: string }[] {
+  const data = (body as { data?: unknown } | undefined)?.data;
+  if (!Array.isArray(data)) return [];
+  return (data as SubscribedApp[]).flatMap((entry) => {
+    const info = entry?.whatsapp_business_api_data;
+    const id = typeof info?.id === "string" || typeof info?.id === "number" ? String(info.id) : "";
+    return id ? [{ id, name: typeof info?.name === "string" ? info.name : "" }] : [];
+  });
+}

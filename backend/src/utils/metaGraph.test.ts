@@ -35,3 +35,15 @@ describe("isTokenError", () => {
     expect(isTokenError(null)).toBe(false);
   });
 });
+
+import { listSubscribedApps } from "./metaGraph";
+
+describe("listSubscribedApps", () => {
+  it("reads ids and names, tolerating junk", () => {
+    expect(
+      listSubscribedApps({ data: [{ whatsapp_business_api_data: { id: "2139151016610399", name: "ChatMitra Web" } }, {}, null] }),
+    ).toEqual([{ id: "2139151016610399", name: "ChatMitra Web" }]);
+    expect(listSubscribedApps(undefined)).toEqual([]);
+    expect(listSubscribedApps({ data: "x" })).toEqual([]);
+  });
+});
