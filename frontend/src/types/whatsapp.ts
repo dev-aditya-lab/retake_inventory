@@ -1,4 +1,5 @@
-export type ChatFilter = "all" | "unread" | "needs_reply";
+export type ChatFilter = "all" | "unread" | "needs_reply" | "mine" | "unassigned" | "resolved";
+export type ChatStatus = "open" | "resolved";
 
 export interface ChatListItem {
   id: string;
@@ -13,6 +14,9 @@ export interface ChatListItem {
   unreadCount: number;
   needsHuman: boolean;
   windowOpen: boolean;
+  status: ChatStatus;
+  labels: string[];
+  assignedToName: string | null;
 }
 
 export interface ChatListPage {
@@ -23,7 +27,7 @@ export interface ChatListPage {
 }
 
 export type MessageStatus = "received" | "sent" | "delivered" | "read" | "failed";
-export type MessageSource = "customer" | "app" | "bot" | "business_app";
+export type MessageSource = "customer" | "app" | "bot" | "business_app" | "note";
 
 export interface ChatMessage {
   id: string;
@@ -35,7 +39,28 @@ export interface ChatMessage {
   source: MessageSource;
   /** Staff member who sent it from the app. */
   sentByName: string | null;
+  media: ChatMedia | null;
+  location: { latitude: number; longitude: number; name: string; address: string } | null;
+  /** The message this one answers (a quote). */
+  replyTo: { text: string; direction: "in" | "out" | null } | null;
+  customerReaction: string;
+  staffReaction: string;
   timestamp: string;
+}
+
+export type MediaKind = "image" | "video" | "audio" | "document" | "sticker";
+
+export interface ChatMedia {
+  kind: MediaKind;
+  mimeType: string;
+  filename: string;
+  caption: string;
+  /** A recorded voice note rather than an audio file. */
+  voice: boolean;
+  /** A copy is in Cloudinary, so it stays available. */
+  saved: boolean;
+  /** Something can still be opened (a saved copy, or Meta's, which lasts about 30 days). */
+  available: boolean;
 }
 
 export interface ChatThread {
@@ -48,6 +73,9 @@ export interface ChatThread {
     needsHuman: boolean;
     windowOpen: boolean;
     windowClosesAt: string | null;
+    status: ChatStatus;
+    labels: string[];
+    assignedTo: { id: string; name: string } | null;
   };
   messages: ChatMessage[];
   hasMore: boolean;
@@ -60,6 +88,49 @@ export interface WhatsappSummary {
   openAlerts: number;
   /** The admin master switch. When false nothing is sent and incoming messages are ignored. */
   serviceEnabled: boolean;
+  media: { cloudinaryConfigured: boolean; autoSave: boolean };
+}
+
+export interface WhatsappAgent {
+  id: string;
+  name: string;
+  role: string;
+}
+
+export interface ListInput {
+  header?: string;
+  body: string;
+  button: string;
+  sectionTitle: string;
+  rows: { title: string; description?: string }[];
+}
+
+export interface CtaInput {
+  header?: string;
+  body: string;
+  footer?: string;
+  buttonText: string;
+  url: string;
+}
+
+export interface LocationInput {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
+export interface ContactInput {
+  name: string;
+  phone: string;
+  role?: string;
+  email?: string;
+}
+
+export interface ConversationPatch {
+  labels?: string[];
+  assignedTo?: string | null;
+  status?: ChatStatus;
 }
 
 export type AlertSeverity = "info" | "warning" | "critical";

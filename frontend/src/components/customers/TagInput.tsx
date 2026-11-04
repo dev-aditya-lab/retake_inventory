@@ -5,7 +5,16 @@ import { X } from "lucide-react";
 import { addTag, MAX_CUSTOMER_TAGS, MAX_TAG_LENGTH, SUGGESTED_TAGS } from "@/lib/customerTags";
 
 /** Up to five short labels on a customer: tap a suggestion or type your own and press Enter. */
-export function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
+export function TagInput({
+  tags,
+  onChange,
+  suggestions: offered = SUGGESTED_TAGS,
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  /** One-tap choices shown under the box. */
+  suggestions?: readonly string[];
+}) {
   const [draft, setDraft] = useState("");
   const full = tags.length >= MAX_CUSTOMER_TAGS;
 
@@ -23,7 +32,7 @@ export function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: 
     }
   }
 
-  const suggestions = SUGGESTED_TAGS.filter((s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase()));
+  const suggestions = offered.filter((s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase()));
 
   return (
     <div className="flex flex-col gap-2">

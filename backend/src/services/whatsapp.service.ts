@@ -58,7 +58,7 @@ export async function sendWhatsAppTemplate(
 }
 
 export interface WhatsAppMedia {
-  kind: "image" | "document" | "video";
+  kind: "image" | "document" | "video" | "audio";
   /** A file already uploaded to WhatsApp (see uploadWhatsAppMedia). */
   id: string;
   caption?: string;
@@ -94,7 +94,8 @@ export async function sendWhatsAppMedia(to: string, media: WhatsAppMedia): Promi
     type: media.kind,
     [media.kind]: {
       id: media.id,
-      ...(media.caption ? { caption: media.caption } : {}),
+      // WhatsApp refuses captions on audio.
+      ...(media.caption && media.kind !== "audio" ? { caption: media.caption } : {}),
       ...(media.kind === "document" && media.filename ? { filename: media.filename } : {}),
     },
   });
@@ -164,8 +165,72 @@ export async function sendInvoiceWhatsApp(params: SendInvoiceWhatsAppParams): Pr
  * the customer messages us, so use it for replies, never for cold outreach.
  * `to` is a WhatsApp id (digits with country code), used as-is.
  */
-export async function sendWhatsAppText(to: string, body: string): Promise<string | undefined> {
-  return postMessage({ to, type: "text", text: { preview_url: false, body } });
+export async function sendWhatsAppText(
+  to: string,
+  body: string,
+  options: { replyToWaId?: string } = {},
+): Promise<string | undefined> {
+  return postMessage({
+    to,
+    type: "text",
+    text: { preview_url: true, body },
+    // Shows the customer's message as a quote above ours.
+    ...(options.replyToWaId ? { context: { message_id: options.replyToWaId } } : {}),
+  });
+}
+
+export interface WhatsAppLocation {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
+/** A map pin the customer can tap to open. Same 24-hour-window rule as sendWhatsAppText. */
+export async function sendWhatsAppLocation(to: string, location: WhatsAppLocation): Promise<string | undefined> {
+  return postMessage({
+    to,
+    type: "location",
+    location: {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      ...(location.name ? { name: location.name } : {}),
+      ...(location.address ? { address: location.address } : {}),
+    },
+  });
+}
+
+export interface WhatsAppCtaUrl {
+  /** <= 1024 chars. */
+  body: string;
+  /** <= 60 chars. */
+  header?: string;
+  /** <= 60 chars. */
+  footer?: string;
+  /** Button label, <= 20 chars. */
+  buttonText: string;
+  /** https link the button opens. */
+  url: string;
+}
+
+/** A message with one button that opens a link (a payment page, a catalogue, a map). */
+export async function sendWhatsAppCtaUrl(to: string, message: WhatsAppCtaUrl): Promise<string | undefined> {
+  return postMessage({
+    to,
+    type: "interactive",
+    interactive: {
+      type: "cta_url",
+      ...(message.header ? { header: { type: "text", text: message.header } } : {}),
+      body: { text: message.body },
+      ...(message.footer ? { footer: { text: message.footer } } : {}),
+      action: { name: "cta_url", parameters: { display_text: message.buttonText, url: message.url } },
+    },
+  });
+}
+
+/** An emoji reaction on one of the customer's messages. An empty emoji removes our reaction. */
+export async function sendWhatsAppReaction(to: string, messageId: string, emoji: string): Promise<string | undefined> {
+  return postMessage({ to, type: "reaction", reaction: { message_id: messageId, emoji } });
 }
 
 export interface WhatsAppMenu {

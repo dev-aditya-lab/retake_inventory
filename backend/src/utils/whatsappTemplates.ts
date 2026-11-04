@@ -318,13 +318,14 @@ export function buildCreateTemplatePayload(t: NewTemplate): Record<string, unkno
 // Media for chat messages
 // ---------------------------------------------------------------------------
 
-export type MediaKind = "image" | "document" | "video";
+export type MediaKind = "image" | "document" | "video" | "audio";
 
 const MB = 1024 * 1024;
 
 const MEDIA_RULES: { kind: MediaKind; mimes: readonly string[]; maxBytes: number }[] = [
   { kind: "image", mimes: ["image/jpeg", "image/png"], maxBytes: 5 * MB },
   { kind: "video", mimes: ["video/mp4", "video/3gpp"], maxBytes: 16 * MB },
+  { kind: "audio", mimes: ["audio/aac", "audio/mp4", "audio/mpeg", "audio/amr", "audio/ogg"], maxBytes: 16 * MB },
   {
     kind: "document",
     mimes: [
@@ -348,7 +349,7 @@ export const MAX_MEDIA_BYTES = 16 * MB;
 export function classifyMedia(mime: string, size: number): { ok: true; kind: MediaKind } | { ok: false; reason: string } {
   const type = mime.toLowerCase().split(";")[0]!.trim();
   const rule = MEDIA_RULES.find((r) => r.mimes.includes(type));
-  if (!rule) return { ok: false, reason: "WhatsApp accepts JPEG/PNG photos, MP4 videos and PDF, Word, Excel, PowerPoint or text files" };
+  if (!rule) return { ok: false, reason: "WhatsApp accepts JPEG/PNG photos, MP4 videos, audio (MP3, AAC, M4A, OGG, AMR) and PDF, Word, Excel, PowerPoint or text files" };
   if (size > rule.maxBytes) {
     return { ok: false, reason: `That ${rule.kind} is too large. The limit is ${Math.round(rule.maxBytes / MB)} MB` };
   }

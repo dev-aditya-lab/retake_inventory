@@ -18,3 +18,19 @@ export async function setWhatsappEnabled(enabled: boolean, userId: string): Prom
   await WhatsappSettings.updateOne({ key: KEY }, { $set: { enabled, updatedBy: userId } }, { upsert: true });
   cache = { value: enabled, at: Date.now() };
 }
+
+let autoSaveCache: { value: boolean; at: number } | undefined;
+
+/** Whether incoming media is copied to Cloudinary automatically. Off unless an admin turns it on. */
+export async function isAutoSaveMediaOn(): Promise<boolean> {
+  if (autoSaveCache && Date.now() - autoSaveCache.at < CACHE_MS) return autoSaveCache.value;
+  const settings = await WhatsappSettings.findOne({ key: KEY }).select("autoSaveMedia").lean();
+  const value = settings?.autoSaveMedia ?? false;
+  autoSaveCache = { value, at: Date.now() };
+  return value;
+}
+
+export async function setAutoSaveMedia(value: boolean, userId: string): Promise<void> {
+  await WhatsappSettings.updateOne({ key: KEY }, { $set: { autoSaveMedia: value, updatedBy: userId } }, { upsert: true });
+  autoSaveCache = { value, at: Date.now() };
+}

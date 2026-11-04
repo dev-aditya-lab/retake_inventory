@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { isCloudinaryConfigured } from "../config/cloudinary";
 import { Customer } from "../models/Customer.model";
 import { User } from "../models/User.model";
 import { WhatsappAlert } from "../models/WhatsappAlert.model";
@@ -22,7 +23,7 @@ import {
 } from "../utils/whatsappChat";
 import type { EchoMessage, InboundMessage, StatusEvent } from "../utils/whatsappWebhook";
 import { sendWhatsAppText } from "./whatsapp.service";
-import { isWhatsappEnabled } from "./whatsappSettings.service";
+import { isAutoSaveMediaOn, isWhatsappEnabled } from "./whatsappSettings.service";
 
 /**
  * The in-app chat: stores every customer message and every reply (ours, the
@@ -78,6 +79,21 @@ export async function recordInbound(message: InboundMessage, options: { needsHum
         status: "received",
         source: "customer",
         timestamp: at,
+        ...(message.media
+          ? {
+              media: {
+                kind: message.media.kind,
+                id: message.media.id,
+                mimeType: message.media.mimeType,
+                filename: message.media.filename,
+                sha256: message.media.sha256,
+                caption: message.media.caption,
+                voice: message.media.voice,
+              },
+            }
+          : {}),
+        ...(message.location ? { location: message.location } : {}),
+        ...(message.contextId ? { replyToWaId: message.contextId } : {}),
       },
     },
     { upsert: true },
@@ -91,8 +107,10 @@ export async function recordInbound(message: InboundMessage, options: { needsHum
       $set: {
         lastMessagePreview: previewOf(text),
         lastDirection: "in",
+        status: "open",
         ...(options.needsHuman ? { needsHuman: true } : {}),
       },
+      $unset: { resolvedAt: "" },
       $inc: { unreadCount: 1 },
     },
   );
@@ -109,6 +127,11 @@ export interface OutboundRecord {
   sentBy?: string;
   type?: string;
   at?: Date;
+  /** The file that was sent (kept so it can be shown in the thread). */
+  media?: { kind: "image" | "video" | "audio" | "document" | "sticker"; id?: string; mimeType?: string; filename?: string; caption?: string };
+  location?: { latitude: number; longitude: number; name?: string; address?: string };
+  /** WhatsApp id of the message this one quotes. */
+  replyToWaId?: string;
 }
 
 /** Stores a message we (or the Business app) sent, so the thread reads as a whole conversation. */
@@ -123,6 +146,9 @@ export async function recordOutbound(record: OutboundRecord): Promise<void> {
     source: record.source,
     timestamp: at,
     ...(record.sentBy ? { sentBy: new Types.ObjectId(record.sentBy) } : {}),
+    ...(record.media ? { media: record.media } : {}),
+    ...(record.location ? { location: record.location } : {}),
+    ...(record.replyToWaId ? { replyToWaId: record.replyToWaId } : {}),
   };
 
   if (record.waMessageId) {
@@ -174,6 +200,14 @@ export async function recordStatus(event: StatusEvent): Promise<void> {
   );
 }
 
+/** A customer's emoji on one of our messages. Empty = they took it back. */
+export async function recordReaction(reaction: { messageId: string; emoji: string }): Promise<void> {
+  await WhatsappMessage.updateOne(
+    { waMessageId: reaction.messageId },
+    reaction.emoji ? { $set: { customerReaction: reaction.emoji } } : { $unset: { customerReaction: "" } },
+  );
+}
+
 /** Something typed in the WhatsApp Business app on our own number. */
 export async function recordEcho(echo: EchoMessage): Promise<void> {
   await recordOutbound({
@@ -198,15 +232,24 @@ export async function isBotPausedFor(waId: string): Promise<boolean> {
 
 export interface ListChatsFilters {
   search?: string;
-  filter: "all" | "unread" | "needs_reply";
+  filter: "all" | "unread" | "needs_reply" | "mine" | "unassigned" | "resolved";
+  /** Only chats carrying this label. */
+  label?: string;
   page: number;
   limit: number;
+  /** Who is asking, for the "mine" filter. */
+  userId?: string;
 }
 
-export async function listConversations({ search, filter, page, limit }: ListChatsFilters) {
+export async function listConversations({ search, filter, label, page, limit, userId }: ListChatsFilters) {
   const query: Record<string, unknown> = {};
   if (filter === "unread") query.unreadCount = { $gt: 0 };
   if (filter === "needs_reply") query.needsHuman = true;
+  if (filter === "mine" && userId) query.assignedTo = new Types.ObjectId(userId);
+  if (filter === "unassigned") query.assignedTo = { $exists: false };
+  if (filter === "resolved") query.status = "resolved";
+  // Everything except the resolved view hides resolved chats only when asked to (a plain "all" shows every chat).
+  if (label) query.labels = label;
 
   if (search) {
     const pattern = escapeRegex(search);
@@ -236,6 +279,9 @@ export async function listConversations({ search, filter, page, limit }: ListCha
     .select("phoneKey name")
     .lean();
   const nameByPhone = new Map(customers.map((c) => [c.phoneKey, c.name]));
+  const agentIds = [...new Set(conversations.map((c) => (c.assignedTo ? String(c.assignedTo) : "")).filter(Boolean))];
+  const agents = agentIds.length > 0 ? await User.find({ _id: { $in: agentIds } }).select("name").lean() : [];
+  const agentName = new Map(agents.map((u) => [String(u._id), u.name]));
   const now = new Date();
 
   return {
@@ -250,6 +296,9 @@ export async function listConversations({ search, filter, page, limit }: ListCha
       unreadCount: c.unreadCount ?? 0,
       needsHuman: !!c.needsHuman,
       windowOpen: isReplyWindowOpen(c.lastInboundAt, now),
+      status: c.status ?? "open",
+      labels: c.labels ?? [],
+      assignedToName: c.assignedTo ? (agentName.get(String(c.assignedTo)) ?? null) : null,
     })),
     total,
     page,
@@ -276,6 +325,16 @@ export async function getThread(id: string, limit: number = THREAD_PAGE) {
   const senders = senderIds.length > 0 ? await User.find({ _id: { $in: senderIds } }).select("name").lean() : [];
   const senderName = new Map(senders.map((u) => [String(u._id), u.name]));
 
+  // The quoted message of each reply, so the thread can show what it answers.
+  const quotedIds = [...new Set(page.map((m) => m.replyToWaId).filter((v): v is string => !!v))];
+  const quoted =
+    quotedIds.length > 0
+      ? await WhatsappMessage.find({ waMessageId: { $in: quotedIds } }).select("waMessageId text direction").lean()
+      : [];
+  const quoteById = new Map(quoted.map((q) => [q.waMessageId, { text: previewOf(q.text ?? "", 120), direction: q.direction }]));
+
+  const assignee = conversation.assignedTo ? await User.findById(conversation.assignedTo).select("name").lean() : null;
+
   const key = phoneKey(conversation.waId);
   const customer = key ? await Customer.findOne({ phoneKey: key }).select("name company").lean() : null;
   const now = new Date();
@@ -290,6 +349,9 @@ export async function getThread(id: string, limit: number = THREAD_PAGE) {
       needsHuman: !!conversation.needsHuman,
       windowOpen: isReplyWindowOpen(conversation.lastInboundAt, now),
       windowClosesAt: replyWindowClosesAt(conversation.lastInboundAt),
+      status: conversation.status ?? "open",
+      labels: conversation.labels ?? [],
+      assignedTo: assignee ? { id: String(assignee._id), name: assignee.name } : null,
     },
     messages: page.map((m) => ({
       id: String(m._id),
@@ -300,6 +362,25 @@ export async function getThread(id: string, limit: number = THREAD_PAGE) {
       error: m.error ?? null,
       source: m.source ?? "customer",
       sentByName: m.sentBy ? (senderName.get(String(m.sentBy)) ?? null) : null,
+      media: m.media
+        ? {
+            kind: m.media.kind,
+            mimeType: m.media.mimeType ?? "",
+            filename: m.media.filename ?? "",
+            caption: m.media.caption ?? "",
+            voice: !!m.media.voice,
+            /** A copy is in Cloudinary. */
+            saved: !!m.media.savedPublicId,
+            /** Something can still be opened: a saved copy, or Meta's own (for ~30 days). */
+            available: !!m.media.savedPublicId || !!m.media.id,
+          }
+        : null,
+      location: m.location
+        ? { latitude: m.location.latitude, longitude: m.location.longitude, name: m.location.name ?? "", address: m.location.address ?? "" }
+        : null,
+      replyTo: m.replyToWaId ? (quoteById.get(m.replyToWaId) ?? { text: "Original message", direction: null }) : null,
+      customerReaction: m.customerReaction ?? "",
+      staffReaction: m.staffReaction ?? "",
       timestamp: m.timestamp,
     })),
     hasMore,
@@ -315,7 +396,7 @@ export async function markRead(id: string): Promise<void> {
  * 24-hour window WhatsApp gives after the customer's last message; a person has
  * now taken over, so the bot is paused for a few hours.
  */
-export async function sendReply(userId: string, id: string, rawText: string) {
+export async function sendReply(userId: string, id: string, rawText: string, replyToMessageId?: string) {
   const text = rawText.trim();
   if (!text) throw ApiError.badRequest("Type a message first");
   if (text.length > MAX_TEXT_LENGTH) throw ApiError.badRequest(`Messages can be at most ${MAX_TEXT_LENGTH} characters`);
@@ -326,8 +407,15 @@ export async function sendReply(userId: string, id: string, rawText: string) {
     throw ApiError.conflict("The 24-hour reply window has closed. The customer needs to message us first.");
   }
 
-  const waMessageId = await sendWhatsAppText(conversation.waId, text);
-  await recordOutbound({ waId: conversation.waId, waMessageId, text, source: "app", sentBy: userId });
+  // Quote one of this chat's messages, if the person picked one.
+  let replyToWaId: string | undefined;
+  if (replyToMessageId) {
+    const quoted = await WhatsappMessage.findOne({ _id: replyToMessageId, conversation: conversation._id }).select("waMessageId").lean();
+    replyToWaId = quoted?.waMessageId ?? undefined;
+  }
+
+  const waMessageId = await sendWhatsAppText(conversation.waId, text, { replyToWaId });
+  await recordOutbound({ waId: conversation.waId, waMessageId, text, source: "app", sentBy: userId, replyToWaId });
 
   await WhatsappConversation.updateOne(
     { _id: conversation._id },
@@ -343,5 +431,11 @@ export async function getSummary(includeAlerts: boolean) {
       ? WhatsappAlert.countDocuments({ acknowledgedAt: { $exists: false }, severity: { $ne: "info" } })
       : Promise.resolve(0),
   ]);
-  return { unreadChats, needsReply, openAlerts, serviceEnabled: await isWhatsappEnabled() };
+  return {
+    unreadChats,
+    needsReply,
+    openAlerts,
+    serviceEnabled: await isWhatsappEnabled(),
+    media: { cloudinaryConfigured: isCloudinaryConfigured(), autoSave: await isAutoSaveMediaOn() },
+  };
 }

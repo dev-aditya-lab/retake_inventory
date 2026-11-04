@@ -1,3 +1,7 @@
+import { company } from "../config/company";
+import { isCloudinaryConfigured } from "../config/cloudinary";
+import { logger } from "../config/logger";
+import { WhatsappMessage } from "../models/WhatsappMessage.model";
 import { WhatsappConversation, type WhatsappConversationDoc } from "../models/WhatsappConversation.model";
 import { ApiError } from "../utils/ApiError";
 import { phoneKey } from "../utils/phone";
@@ -11,11 +15,17 @@ import {
 } from "../utils/whatsappTemplates";
 import {
   sendWhatsAppButtons,
+  sendWhatsAppContacts,
+  sendWhatsAppCtaUrl,
+  sendWhatsAppLocation,
   sendWhatsAppMedia,
+  sendWhatsAppMenu,
+  sendWhatsAppReaction,
   sendWhatsAppTemplate,
   uploadWhatsAppMedia,
 } from "./whatsapp.service";
 import { ensureConversation, recordOutbound } from "./whatsappChat.service";
+import { storeSentCopy, uploadToCloudinary } from "./whatsappMedia.service";
 import { getSendableTemplate } from "./whatsappTemplate.service";
 
 /**
@@ -77,7 +87,7 @@ export async function sendTemplateToChat(userId: string, id: string, templateId:
 // ---------------------------------------------------------------------------
 
 const CAPTION_MAX = 1024;
-const PLACEHOLDER = { image: "[Photo]", video: "[Video]", document: "[Document]" } as const;
+const PLACEHOLDER = { image: "[Photo]", video: "[Video]", document: "[Document]", audio: "[Audio]" } as const;
 
 export interface UploadedFile {
   buffer: Buffer;
@@ -86,7 +96,13 @@ export interface UploadedFile {
   size: number;
 }
 
-export async function sendMediaToChat(userId: string, id: string, file: UploadedFile, rawCaption: string): Promise<void> {
+export async function sendMediaToChat(
+  userId: string,
+  id: string,
+  file: UploadedFile,
+  rawCaption: string,
+  options: { saveCopy?: boolean } = {},
+): Promise<void> {
   const conversation = await loadConversation(id);
   requireWindow(conversation, "files");
 
@@ -112,8 +128,27 @@ export async function sendMediaToChat(userId: string, id: string, file: Uploaded
     source: "app",
     sentBy: userId,
     type: checked.kind,
+    media: {
+      kind: checked.kind,
+      id: mediaId,
+      mimeType: file.mimetype,
+      filename: file.originalname,
+      caption: caption || undefined,
+    },
   });
   await markHandled(conversation);
+
+  // The message is already sent; a Cloudinary hiccup must not make it look failed.
+  if (options.saveCopy && isCloudinaryConfigured()) {
+    try {
+      await storeSentCopy(
+        waMessageId,
+        await uploadToCloudinary({ source: file.buffer, kind: checked.kind, mimeType: file.mimetype, filename: file.originalname }),
+      );
+    } catch (err) {
+      logger.warn({ err }, "Could not keep a Cloudinary copy of a sent file");
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -162,4 +197,138 @@ export async function startChat(rawPhone: string, name?: string): Promise<string
   if (!waId) throw ApiError.badRequest("Enter a valid phone number");
   const conversation = await ensureConversation(waId, name?.trim() || undefined);
   return String(conversation._id);
+}
+
+// ---------------------------------------------------------------------------
+// List, link button, location, contact card, reaction
+// ---------------------------------------------------------------------------
+
+export interface ListInput {
+  header?: string;
+  body: string;
+  button: string;
+  sectionTitle: string;
+  rows: { title: string; description?: string }[];
+}
+
+/** A tap-to-choose list (up to 10 options). The customer's pick comes back as a message. */
+export async function sendListToChat(userId: string, id: string, input: ListInput): Promise<void> {
+  const conversation = await loadConversation(id);
+  requireWindow(conversation, "a list");
+
+  const rows = input.rows.map((r, i) => ({ id: `staff_row_${i + 1}`, title: r.title.trim(), description: r.description?.trim() || undefined }));
+  const waMessageId = await sendWhatsAppMenu(conversation.waId, {
+    header: input.header?.trim() || undefined,
+    body: input.body.trim(),
+    button: input.button.trim(),
+    sectionTitle: input.sectionTitle.trim(),
+    rows,
+  });
+  await recordOutbound({
+    waId: conversation.waId,
+    waMessageId,
+    text: `${input.body.trim()}\n[List: ${rows.map((r) => r.title).join(" | ")}]`,
+    source: "app",
+    sentBy: userId,
+    type: "interactive",
+  });
+  await markHandled(conversation);
+}
+
+export interface CtaInput {
+  header?: string;
+  body: string;
+  footer?: string;
+  buttonText: string;
+  url: string;
+}
+
+export async function sendCtaToChat(userId: string, id: string, input: CtaInput): Promise<void> {
+  const conversation = await loadConversation(id);
+  requireWindow(conversation, "a link button");
+
+  const waMessageId = await sendWhatsAppCtaUrl(conversation.waId, {
+    header: input.header?.trim() || undefined,
+    body: input.body.trim(),
+    footer: input.footer?.trim() || undefined,
+    buttonText: input.buttonText.trim(),
+    url: input.url.trim(),
+  });
+  await recordOutbound({
+    waId: conversation.waId,
+    waMessageId,
+    text: `${input.body.trim()}\n[Link: ${input.buttonText.trim()}]`,
+    source: "app",
+    sentBy: userId,
+    type: "interactive",
+  });
+  await markHandled(conversation);
+}
+
+export interface LocationInput {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
+export async function sendLocationToChat(userId: string, id: string, input: LocationInput): Promise<void> {
+  const conversation = await loadConversation(id);
+  requireWindow(conversation, "a location");
+
+  const waMessageId = await sendWhatsAppLocation(conversation.waId, input);
+  await recordOutbound({
+    waId: conversation.waId,
+    waMessageId,
+    text: `[Location]${input.name ? ` ${input.name}` : ""}`,
+    source: "app",
+    sentBy: userId,
+    type: "location",
+    location: input,
+  });
+  await markHandled(conversation);
+}
+
+export interface ContactInput {
+  name: string;
+  phone: string;
+  role?: string;
+  email?: string;
+}
+
+/** A "save contact" card, e.g. the person who handles the customer's orders. */
+export async function sendContactToChat(userId: string, id: string, input: ContactInput): Promise<void> {
+  const conversation = await loadConversation(id);
+  requireWindow(conversation, "a contact card");
+
+  const waMessageId = await sendWhatsAppContacts(
+    conversation.waId,
+    [{ name: input.name.trim(), phone: input.phone, role: input.role?.trim() || undefined, email: input.email?.trim() || undefined }],
+    company.legalName,
+  );
+  await recordOutbound({
+    waId: conversation.waId,
+    waMessageId,
+    text: `[Contact card: ${input.name.trim()}]`,
+    source: "app",
+    sentBy: userId,
+    type: "contacts",
+  });
+  await markHandled(conversation);
+}
+
+/** React to one of the customer's messages. An empty emoji takes the reaction back. */
+export async function reactToMessage(messageId: string, emoji: string): Promise<void> {
+  const message = await WhatsappMessage.findById(messageId).select("conversation waMessageId direction").lean();
+  if (!message) throw ApiError.notFound("Message not found");
+  if (message.direction !== "in" || !message.waMessageId) throw ApiError.badRequest("You can only react to a customer's message");
+
+  const conversation = await loadConversation(String(message.conversation));
+  requireWindow(conversation, "a reaction");
+
+  await sendWhatsAppReaction(conversation.waId, message.waMessageId, emoji);
+  await WhatsappMessage.updateOne(
+    { _id: messageId },
+    emoji ? { $set: { staffReaction: emoji } } : { $unset: { staffReaction: "" } },
+  );
 }

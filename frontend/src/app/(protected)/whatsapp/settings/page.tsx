@@ -8,7 +8,9 @@ import { formatDateTime } from "@/lib/format";
 import { API_BASE_URL } from "@/lib/redux/apiSlice";
 import {
   useGetWhatsappConfigQuery,
+  useGetWhatsappSummaryQuery,
   useSaveWhatsappConfigMutation,
+  useSetWhatsappMediaSettingsMutation,
   useSubscribeWhatsappWebhooksMutation,
   useTestWhatsappConnectionMutation,
 } from "@/lib/redux/features/whatsapp/whatsappApi";
@@ -51,6 +53,7 @@ function SettingsPanels() {
       <ConnectionCard config={data} />
       <ConfigForm config={data} />
       <WebhookCard config={data} />
+      <MediaCard />
     </div>
   );
 }
@@ -485,6 +488,79 @@ function WebhookCard({ config }: { config: WhatsappConfig }) {
       )}
       {!config.appSecret.set && (
         <p className="mt-1 text-xs text-danger">No app secret yet. Incoming messages are rejected until you add one above.</p>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Photos and files
+// ---------------------------------------------------------------------------
+
+/**
+ * WhatsApp keeps a customer's photos and files for about 30 days. Saving copies
+ * them to Cloudinary (private, only opened through this app) so they last.
+ */
+function MediaCard() {
+  const { data: summary } = useGetWhatsappSummaryQuery();
+  const [setAutoSave, { isLoading }] = useSetWhatsappMediaSettingsMutation();
+  const [error, setError] = useState<string | null>(null);
+
+  if (!summary) return null;
+  const { cloudinaryConfigured, autoSave } = summary.media;
+
+  async function toggle() {
+    setError(null);
+    try {
+      await setAutoSave(!autoSave).unwrap();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Couldn't change the setting. Try again."));
+    }
+  }
+
+  return (
+    <section aria-labelledby="media-heading" className="rounded-lg border border-border bg-background p-3">
+      <h2 id="media-heading" className="text-base font-semibold text-foreground">
+        Photos and files
+      </h2>
+      <p className="mt-0.5 text-sm text-muted">
+        WhatsApp only keeps the photos, videos and documents customers send for about 30 days. Saving a copy to the cloud keeps it
+        for good. Saved files are private: they open only inside this app.
+      </p>
+
+      {!cloudinaryConfigured ? (
+        <p className="mt-3 rounded-md bg-chilli-50 p-2.5 text-sm text-chilli-800">
+          Cloud storage isn&apos;t set up on the server yet. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET to
+          the server settings, then restart it.
+        </p>
+      ) : (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 basis-56">
+            <p className="text-sm font-medium text-foreground">Save new files automatically: {autoSave ? "On" : "Off"}</p>
+            <p className="text-xs text-muted">
+              {autoSave
+                ? "Every photo or file a customer sends is copied to the cloud as it arrives."
+                : "Staff can still save a file with the “Save to cloud” button under it."}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoSave}
+            onClick={toggle}
+            disabled={isLoading}
+            className={`rounded-md px-4 py-2.5 text-sm font-medium disabled:opacity-60 ${
+              autoSave ? "border border-border bg-background text-foreground hover:bg-ink-100" : "bg-primary text-primary-foreground"
+            }`}
+          >
+            {isLoading ? "Saving…" : autoSave ? "Turn off" : "Turn on"}
+          </button>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-danger">
+          {error}
+        </p>
       )}
     </section>
   );

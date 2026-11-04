@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Plus, Search } from "lucide-react";
 import { NewChatDialog } from "@/components/whatsapp/ComposerDialogs";
-import { useListChatsQuery } from "@/lib/redux/features/whatsapp/whatsappApi";
+import { useListChatsQuery, useListWhatsappLabelsQuery } from "@/lib/redux/features/whatsapp/whatsappApi";
 import { chatTitle, formatChatTime, initialOf } from "@/lib/whatsapp";
 import type { ChatFilter, ChatListItem } from "@/types/whatsapp";
 
@@ -13,6 +13,9 @@ const FILTERS: { value: ChatFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
   { value: "needs_reply", label: "Needs reply" },
+  { value: "mine", label: "Mine" },
+  { value: "unassigned", label: "Unassigned" },
+  { value: "resolved", label: "Resolved" },
 ];
 
 const PAGE = 30;
@@ -26,6 +29,8 @@ export function ChatList({ activeId }: { activeId?: string }) {
   const [debounced, setDebounced] = useState("");
   const [limit, setLimit] = useState(PAGE);
   const [newChatOpen, setNewChatOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const { data: labels } = useListWhatsappLabelsQuery();
   const router = useRouter();
 
   useEffect(() => {
@@ -34,7 +39,7 @@ export function ChatList({ activeId }: { activeId?: string }) {
   }, [search]);
 
   const { data, isLoading, isError, refetch } = useListChatsQuery(
-    { filter, search: debounced || undefined, limit },
+    { filter, label: label || undefined, search: debounced || undefined, limit },
     { pollingInterval: POLL_MS, skipPollingIfUnfocused: true },
   );
 
@@ -90,6 +95,27 @@ export function ChatList({ activeId }: { activeId?: string }) {
             </button>
           ))}
         </div>
+
+        {!!labels?.length && (
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <span className="shrink-0">Label</span>
+            <select
+              value={label}
+              onChange={(e) => {
+                setLabel(e.target.value);
+                setLimit(PAGE);
+              }}
+              className="input min-h-9 flex-1 py-1 text-xs"
+            >
+              <option value="">All labels</option>
+              {labels.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -107,7 +133,7 @@ export function ChatList({ activeId }: { activeId?: string }) {
         {!isLoading && !isError && items.length === 0 && (
           <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-muted">
             <MessageCircle size={28} aria-hidden />
-            {debounced || filter !== "all"
+            {debounced || filter !== "all" || label
               ? "No chats match."
               : "No chats yet. When a customer messages the shop's WhatsApp number, it shows up here."}
           </div>
@@ -188,11 +214,20 @@ function ChatRow({ chat, active }: { chat: ChatListItem; active: boolean }) {
             )}
           </span>
 
-          {chat.needsHuman && (
-            <span className="mt-1 inline-block rounded bg-chilli-100 px-1.5 py-0.5 text-[11px] font-medium text-chilli-800">
-              Needs reply
-            </span>
-          )}
+          <span className="mt-1 flex flex-wrap items-center gap-1">
+            {chat.needsHuman && (
+              <span className="rounded bg-chilli-100 px-1.5 py-0.5 text-[11px] font-medium text-chilli-800">Needs reply</span>
+            )}
+            {chat.status === "resolved" && (
+              <span className="rounded bg-ink-200 px-1.5 py-0.5 text-[11px] font-medium text-ink-800">Resolved</span>
+            )}
+            {chat.labels.map((l) => (
+              <span key={l} className="rounded-full bg-leaf-100 px-1.5 py-0.5 text-[11px] font-medium text-leaf-800">
+                {l}
+              </span>
+            ))}
+            {chat.assignedToName && <span className="text-[11px] text-muted">→ {chat.assignedToName}</span>}
+          </span>
         </span>
       </Link>
     </li>

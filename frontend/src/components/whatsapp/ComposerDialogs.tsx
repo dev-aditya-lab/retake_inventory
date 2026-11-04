@@ -13,7 +13,8 @@ import {
 } from "@/lib/redux/features/whatsapp/whatsappApi";
 
 /** Mirrors the backend: WhatsApp's file types and the size cap. */
-export const ATTACH_ACCEPT = "image/jpeg,image/png,video/mp4,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt";
+export const ATTACH_ACCEPT =
+  "image/jpeg,image/png,video/mp4,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/amr,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt";
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -28,26 +29,52 @@ function formatSize(bytes: number): string {
 export function AttachDialog({
   chatId,
   file,
+  cloudinaryConfigured,
   onClose,
   onSent,
 }: {
   chatId: string;
   file: File | null;
+  /** Whether the server can keep a copy in Cloudinary. */
+  cloudinaryConfigured: boolean;
   onClose: () => void;
   onSent: () => void;
 }) {
   return (
     <Modal open={!!file} onClose={onClose} title="Send a file" size="sm">
-      {file && <AttachForm key={`${file.name}-${file.size}-${file.lastModified}`} chatId={chatId} file={file} onClose={onClose} onSent={onSent} />}
+      {file && (
+        <AttachForm
+          key={`${file.name}-${file.size}-${file.lastModified}`}
+          chatId={chatId}
+          file={file}
+          cloudinaryConfigured={cloudinaryConfigured}
+          onClose={onClose}
+          onSent={onSent}
+        />
+      )}
     </Modal>
   );
 }
 
-function AttachForm({ chatId, file, onClose, onSent }: { chatId: string; file: File; onClose: () => void; onSent: () => void }) {
+function AttachForm({
+  chatId,
+  file,
+  cloudinaryConfigured,
+  onClose,
+  onSent,
+}: {
+  chatId: string;
+  file: File;
+  cloudinaryConfigured: boolean;
+  onClose: () => void;
+  onSent: () => void;
+}) {
   const [send, { isLoading }] = useSendChatMediaMutation();
   const [caption, setCaption] = useState("");
+  const [saveCopy, setSaveCopy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isAudio = file.type.startsWith("audio/");
   const isImage = file.type.startsWith("image/");
   const tooBig = file.size > MAX_FILE_BYTES || (isImage && file.size > IMAGE_MAX_BYTES);
   const limit = isImage ? "5 MB" : "16 MB";
@@ -57,7 +84,7 @@ function AttachForm({ chatId, file, onClose, onSent }: { chatId: string; file: F
     if (isLoading || tooBig) return;
     setError(null);
     try {
-      await send({ id: chatId, file, caption: caption.trim() }).unwrap();
+      await send({ id: chatId, file, caption: isAudio ? "" : caption.trim(), saveCopy }).unwrap();
       onSent();
       onClose();
     } catch (err) {
@@ -77,10 +104,22 @@ function AttachForm({ chatId, file, onClose, onSent }: { chatId: string; file: F
 
       {tooBig && <p role="alert" className="text-sm text-danger">This file is too large. The limit is {limit}.</p>}
 
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-        Caption <span className="font-normal text-muted">(optional)</span>
-        <textarea rows={2} maxLength={1024} value={caption} onChange={(e) => setCaption(e.target.value)} className="input resize-none" />
-      </label>
+      {!isAudio && (
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+          Caption <span className="font-normal text-muted">(optional)</span>
+          <textarea rows={2} maxLength={1024} value={caption} onChange={(e) => setCaption(e.target.value)} className="input resize-none" />
+        </label>
+      )}
+
+      {cloudinaryConfigured && (
+        <label className="flex items-start gap-2 rounded-md bg-surface p-3 text-sm text-foreground">
+          <input type="checkbox" checked={saveCopy} onChange={(e) => setSaveCopy(e.target.checked)} className="mt-0.5 h-4 w-4" />
+          <span>
+            Also keep a copy in the cloud
+            <span className="block text-xs text-muted">WhatsApp only keeps sent files for about 30 days.</span>
+          </span>
+        </label>
+      )}
 
       {error && (
         <p role="alert" className="text-sm text-danger">

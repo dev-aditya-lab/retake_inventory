@@ -1,6 +1,12 @@
 import { apiSlice, unwrap } from "../../apiSlice";
 import type {
   ChatFilter,
+  ContactInput,
+  ConversationPatch,
+  CtaInput,
+  ListInput,
+  LocationInput,
+  WhatsappAgent,
   ChatListPage,
   ChatThread,
   ConnectionResult,
@@ -19,6 +25,7 @@ const done = (): undefined => undefined;
 
 export interface ListChatsArgs {
   filter?: ChatFilter;
+  label?: string;
   search?: string;
   page?: number;
   limit?: number;
@@ -32,9 +39,10 @@ export const whatsappApi = apiSlice.injectEndpoints({
       providesTags: ["Whatsapp"],
     }),
     listChats: builder.query<ChatListPage, ListChatsArgs>({
-      query: ({ filter = "all", search, page = 1, limit = 30 }) => {
+      query: ({ filter = "all", label, search, page = 1, limit = 30 }) => {
         const params = new URLSearchParams({ filter, page: String(page), limit: String(limit) });
         if (search) params.set("search", search);
+        if (label) params.set("label", label);
         return `/api/whatsapp/chats?${params.toString()}`;
       },
       transformResponse: unwrap<ChatListPage>,
@@ -51,8 +59,8 @@ export const whatsappApi = apiSlice.injectEndpoints({
       transformResponse: done,
       invalidatesTags: ["Whatsapp"],
     }),
-    sendChatMessage: builder.mutation<void, { id: string; text: string }>({
-      query: ({ id, text }) => ({ url: `/api/whatsapp/chats/${id}/messages`, method: "POST", body: { text } }),
+    sendChatMessage: builder.mutation<void, { id: string; text: string; replyTo?: string }>({
+      query: ({ id, text, replyTo }) => ({ url: `/api/whatsapp/chats/${id}/messages`, method: "POST", body: { text, replyTo } }),
       transformResponse: done,
       invalidatesTags: ["Whatsapp"],
     }),
@@ -125,10 +133,11 @@ export const whatsappApi = apiSlice.injectEndpoints({
       transformResponse: done,
       invalidatesTags: ["Whatsapp"],
     }),
-    sendChatMedia: builder.mutation<void, { id: string; file: File; caption: string }>({
-      query: ({ id, file, caption }) => {
+    sendChatMedia: builder.mutation<void, { id: string; file: File; caption: string; saveCopy?: boolean }>({
+      query: ({ id, file, caption, saveCopy }) => {
         const body = new FormData();
         body.append("caption", caption);
+        body.append("saveCopy", saveCopy ? "true" : "false");
         body.append("file", file);
         return { url: `/api/whatsapp/chats/${id}/media`, method: "POST", body };
       },
@@ -144,6 +153,63 @@ export const whatsappApi = apiSlice.injectEndpoints({
       transformResponse: done,
       invalidatesTags: ["Whatsapp"],
     }),
+    sendChatList: builder.mutation<void, { id: string } & ListInput>({
+      query: ({ id, ...body }) => ({ url: `/api/whatsapp/chats/${id}/list`, method: "POST", body }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    sendChatCta: builder.mutation<void, { id: string } & CtaInput>({
+      query: ({ id, ...body }) => ({ url: `/api/whatsapp/chats/${id}/cta`, method: "POST", body }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    sendChatLocation: builder.mutation<void, { id: string } & LocationInput>({
+      query: ({ id, ...body }) => ({ url: `/api/whatsapp/chats/${id}/location`, method: "POST", body }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    sendChatContact: builder.mutation<void, { id: string } & ContactInput>({
+      query: ({ id, ...body }) => ({ url: `/api/whatsapp/chats/${id}/contact`, method: "POST", body }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    reactToMessage: builder.mutation<void, { messageId: string; emoji: string }>({
+      query: ({ messageId, emoji }) => ({ url: `/api/whatsapp/messages/${messageId}/react`, method: "POST", body: { emoji } }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+
+    // ----- Saving files, CRM -----
+    saveChatMedia: builder.mutation<void, string>({
+      query: (messageId) => ({ url: `/api/whatsapp/media/${messageId}/save`, method: "POST" }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    setWhatsappMediaSettings: builder.mutation<void, boolean>({
+      query: (autoSave) => ({ url: "/api/whatsapp/settings/media", method: "PUT", body: { autoSave } }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    updateChat: builder.mutation<void, { id: string } & ConversationPatch>({
+      query: ({ id, ...body }) => ({ url: `/api/whatsapp/chats/${id}`, method: "PATCH", body }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp", "WhatsappLabel"],
+    }),
+    addChatNote: builder.mutation<void, { id: string; text: string }>({
+      query: ({ id, text }) => ({ url: `/api/whatsapp/chats/${id}/notes`, method: "POST", body: { text } }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    listWhatsappAgents: builder.query<WhatsappAgent[], void>({
+      query: () => "/api/whatsapp/agents",
+      transformResponse: unwrap<WhatsappAgent[]>,
+    }),
+    listWhatsappLabels: builder.query<string[], void>({
+      query: () => "/api/whatsapp/labels",
+      transformResponse: unwrap<string[]>,
+      providesTags: ["WhatsappLabel"],
+    }),
+
     startWhatsappChat: builder.mutation<{ id: string }, { phone: string; name?: string }>({
       query: (body) => ({ url: "/api/whatsapp/chats/start", method: "POST", body }),
       transformResponse: unwrap<{ id: string }>,
@@ -195,6 +261,17 @@ export const {
   useSendChatMediaMutation,
   useSendChatButtonsMutation,
   useStartWhatsappChatMutation,
+  useSendChatListMutation,
+  useSendChatCtaMutation,
+  useSendChatLocationMutation,
+  useSendChatContactMutation,
+  useReactToMessageMutation,
+  useSaveChatMediaMutation,
+  useSetWhatsappMediaSettingsMutation,
+  useUpdateChatMutation,
+  useAddChatNoteMutation,
+  useListWhatsappAgentsQuery,
+  useListWhatsappLabelsQuery,
   useListQuickRepliesQuery,
   useCreateQuickReplyMutation,
   useUpdateQuickReplyMutation,

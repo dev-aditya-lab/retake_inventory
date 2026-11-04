@@ -26,10 +26,23 @@ whatsappChatRouter.get("/chats", chatController.listChats);
 whatsappChatRouter.post("/chats/start", manage.startNewChat);
 whatsappChatRouter.get("/chats/:id", chatController.getChat);
 whatsappChatRouter.post("/chats/:id/read", chatController.markChatRead);
+whatsappChatRouter.patch("/chats/:id", manage.updateChat);
+whatsappChatRouter.post("/chats/:id/notes", manage.addChatNote);
+whatsappChatRouter.get("/agents", manage.listAgents);
+whatsappChatRouter.get("/labels", manage.listLabels);
 whatsappChatRouter.post("/chats/:id/messages", whatsappSendLimiter, chatController.sendChatMessage);
 whatsappChatRouter.post("/chats/:id/template", whatsappSendLimiter, manage.sendTemplate);
 whatsappChatRouter.post("/chats/:id/media", whatsappSendLimiter, uploadChatMedia, manage.sendMedia);
 whatsappChatRouter.post("/chats/:id/buttons", whatsappSendLimiter, manage.sendButtons);
+whatsappChatRouter.post("/chats/:id/list", whatsappSendLimiter, manage.sendList);
+whatsappChatRouter.post("/chats/:id/cta", whatsappSendLimiter, manage.sendCta);
+whatsappChatRouter.post("/chats/:id/location", whatsappSendLimiter, manage.sendLocation);
+whatsappChatRouter.post("/chats/:id/contact", whatsappSendLimiter, manage.sendContact);
+whatsappChatRouter.post("/messages/:messageId/react", whatsappSendLimiter, manage.reactToChatMessage);
+
+// ----- Photos and files in chats (every staff role may view and save) -----
+whatsappChatRouter.get("/media/:messageId", manage.viewMedia);
+whatsappChatRouter.post("/media/:messageId/save", manage.saveMedia);
 
 // ----- Templates and quick replies: everyone reads, admins manage -----
 whatsappChatRouter.get("/templates", manage.listTemplates);
@@ -44,6 +57,7 @@ whatsappChatRouter.delete("/quick-replies/:id", adminOnly, manage.deleteQuickRep
 
 // ----- Service switch, connection settings, account health (admin) -----
 whatsappChatRouter.put("/settings", adminOnly, chatController.setServiceEnabled);
+whatsappChatRouter.put("/settings/media", adminOnly, manage.setMediaSettings);
 whatsappChatRouter.get("/config", adminOnly, manage.getConfig);
 whatsappChatRouter.put("/config", adminOnly, manage.updateConfig);
 whatsappChatRouter.post("/config/test", adminOnly, manage.checkConnection);

@@ -2,15 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, CheckCheck, CircleAlert, LayoutTemplate, Lock, MousePointerClick, Paperclip, Send, UserPlus, Zap } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, CircleAlert, CornerUpLeft, LayoutTemplate, Lock, MoreHorizontal, MousePointerClick, NotebookPen, Paperclip, Send, SmilePlus, UserPlus, X, Zap } from "lucide-react";
 import {
   useGetChatQuery,
   useGetWhatsappSummaryQuery,
   useMarkChatReadMutation,
+  useReactToMessageMutation,
   useSendChatMessageMutation,
 } from "@/lib/redux/features/whatsapp/whatsappApi";
 import { AddCustomerDialog } from "@/components/customers/AddCustomerDialog";
 import { AttachDialog, ATTACH_ACCEPT, ButtonsDialog, QuickReplyDialog } from "@/components/whatsapp/ComposerDialogs";
+import { ChatCrmBar } from "@/components/whatsapp/ChatCrmBar";
+import { LocationCard, MediaAttachment } from "@/components/whatsapp/MediaAttachment";
+import { MessageBuilderDialog, MoreMenuDialog, type BuilderKind } from "@/components/whatsapp/MessageBuilders";
 import { SendTemplateDialog } from "@/components/whatsapp/SendTemplateDialog";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
@@ -31,6 +35,10 @@ export function ChatThreadView({ id }: { id: string }) {
   const [buttonsOpen, setButtonsOpen] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [saveContactOpen, setSaveContactOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [builder, setBuilder] = useState<BuilderKind | null>(null);
+  /** The message being quoted by the reply that is being typed. */
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: user } = useGetMeQuery();
@@ -81,8 +89,9 @@ export function ChatThreadView({ id }: { id: string }) {
 
     setSendError(null);
     try {
-      await sendMessage({ id, text }).unwrap();
+      await sendMessage({ id, text, ...(replyTo ? { replyTo: replyTo.id } : {}) }).unwrap();
       setDraft("");
+      setReplyTo(null);
       stickToBottom.current = true;
       if (textareaRef.current) textareaRef.current.style.height = "";
     } catch (err) {
@@ -181,6 +190,9 @@ export function ChatThreadView({ id }: { id: string }) {
             {conversation.company ? ` · ${conversation.company}` : ""}
           </p>
         </div>
+        {conversation.status === "resolved" && (
+          <span className="shrink-0 rounded bg-leaf-100 px-1.5 py-0.5 text-[11px] font-medium text-leaf-800">Resolved</span>
+        )}
         {conversation.needsHuman && (
           <span className="shrink-0 rounded bg-chilli-100 px-1.5 py-0.5 text-[11px] font-medium text-chilli-800">
             Needs reply
@@ -198,6 +210,8 @@ export function ChatThreadView({ id }: { id: string }) {
           </button>
         )}
       </header>
+
+      <ChatCrmBar chat={conversation} />
 
       <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto bg-surface px-3 py-3">
         {data.hasMore && (
@@ -222,7 +236,15 @@ export function ChatThreadView({ id }: { id: string }) {
               </li>
             ) : (
               <li key={item.message.id}>
-                <Bubble message={item.message} />
+                <Bubble
+                  message={item.message}
+                  cloudinaryConfigured={summary?.media.cloudinaryConfigured ?? false}
+                  canReact={conversation.windowOpen && !serviceOff}
+                  onReply={() => {
+                    setReplyTo(item.message);
+                    textareaRef.current?.focus();
+                  }}
+                />
               </li>
             ),
           )}
@@ -241,7 +263,26 @@ export function ChatThreadView({ id }: { id: string }) {
             <ToolButton icon={Paperclip} label="Photo / file" onClick={() => fileInputRef.current?.click()} />
             <ToolButton icon={MousePointerClick} label="Buttons" onClick={() => setButtonsOpen(true)} />
             <ToolButton icon={LayoutTemplate} label="Template" onClick={() => setTemplateOpen(true)} />
+            <ToolButton icon={MoreHorizontal} label="More" onClick={() => setMoreOpen(true)} />
           </div>
+          {replyTo && (
+            <div className="mb-2 flex items-start gap-2 rounded-md border-l-4 border-leaf-500 bg-surface px-2.5 py-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium text-muted">
+                  Replying to {replyTo.direction === "in" ? "the customer" : "your message"}
+                </p>
+                <p className="line-clamp-2 text-xs text-foreground [overflow-wrap:anywhere]">{replyTo.text}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyTo(null)}
+                aria-label="Stop replying to this message"
+                className="rounded-md p-1 text-muted hover:bg-ink-100"
+              >
+                <X size={14} aria-hidden />
+              </button>
+            </div>
+          )}
           {sendError && (
             <p role="alert" className="mb-2 px-1 text-sm text-danger">
               {sendError}
@@ -293,6 +334,13 @@ export function ChatThreadView({ id }: { id: string }) {
           >
             <LayoutTemplate size={16} aria-hidden /> Send a template
           </button>
+          <button
+            type="button"
+            onClick={() => setBuilder("note")}
+            className="flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-ink-100"
+          >
+            <NotebookPen size={16} aria-hidden /> Add an internal note
+          </button>
         </div>
       )}
 
@@ -322,7 +370,17 @@ export function ChatThreadView({ id }: { id: string }) {
         prefill={{ name: conversation.name, phone: `+${conversation.waId}` }}
         source="whatsapp"
       />
-      <AttachDialog chatId={id} file={attachment} onClose={() => setAttachment(null)} onSent={handleSentElsewhere} />
+      <MoreMenuDialog
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        windowOpen={conversation.windowOpen}
+        onChoose={(kind) => {
+          setMoreOpen(false);
+          setBuilder(kind);
+        }}
+      />
+      <MessageBuilderDialog kind={builder} chatId={id} onClose={() => setBuilder(null)} onSent={handleSentElsewhere} />
+      <AttachDialog chatId={id} file={attachment} cloudinaryConfigured={summary?.media.cloudinaryConfigured ?? false} onClose={() => setAttachment(null)} onSent={handleSentElsewhere} />
     </section>
   );
 }
@@ -346,33 +404,142 @@ function withDayDividers(messages: ChatMessage[]): ThreadItem[] {
 }
 
 function senderLabel(message: ChatMessage): string | null {
+  if (message.source === "note") return `Internal note${message.sentByName ? ` · ${message.sentByName}` : ""}`;
   if (message.direction === "in") return null;
   if (message.source === "bot") return "Auto-reply";
   if (message.source === "business_app") return "Sent from the WhatsApp Business app";
   return message.sentByName ?? "Staff";
 }
 
-function Bubble({ message }: { message: ChatMessage }) {
+/** What to print as the message's words: media and locations are drawn by their own card, so only a caption remains. */
+function bodyText(message: ChatMessage): string {
+  if (message.media) return message.media.caption;
+  if (message.location) return "";
+  return message.text || "Message sent";
+}
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "🙏", "✅"];
+
+function Bubble({
+  message,
+  cloudinaryConfigured,
+  canReact,
+  onReply,
+}: {
+  message: ChatMessage;
+  cloudinaryConfigured: boolean;
+  canReact: boolean;
+  onReply: () => void;
+}) {
+  const [react, { isLoading: reacting }] = useReactToMessageMutation();
+  const [picking, setPicking] = useState(false);
+  const [reactError, setReactError] = useState<string | null>(null);
+
+  const isNote = message.source === "note";
   const outgoing = message.direction === "out";
   const label = senderLabel(message);
-  const tone = !outgoing
-    ? "border border-border bg-background"
-    : message.source === "bot"
-      ? "bg-ink-100"
-      : "bg-leaf-100";
+  const tone = isNote
+    ? "border border-amber-300 bg-amber-50"
+    : !outgoing
+      ? "border border-border bg-background"
+      : message.source === "bot"
+        ? "bg-ink-100"
+        : "bg-leaf-100";
+  const text = bodyText(message);
+
+  async function handleReact(emoji: string) {
+    setReactError(null);
+    setPicking(false);
+    try {
+      // Tapping the emoji already chosen takes the reaction back.
+      await react({ messageId: message.id, emoji: message.staffReaction === emoji ? "" : emoji }).unwrap();
+    } catch (err) {
+      setReactError(getApiErrorMessage(err, "Couldn't react."));
+    }
+  }
+
+  const reactions = [message.customerReaction, message.staffReaction].filter(Boolean);
 
   return (
-    <div className={`flex ${outgoing ? "justify-end" : "justify-start"}`}>
+    <div className={`flex ${isNote ? "justify-center" : outgoing ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[85%] min-w-0 rounded-2xl px-3 py-2 text-sm text-foreground sm:max-w-[75%] ${tone}`}>
-        {label && <p className="mb-0.5 text-[11px] font-medium text-muted">{label}</p>}
-        <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.text || "Message sent"}</p>
+        {label && <p className={`mb-0.5 text-[11px] font-medium ${isNote ? "text-amber-800" : "text-muted"}`}>{label}</p>}
+
+        {message.replyTo && (
+          <div className="mb-1.5 rounded-md border-l-4 border-leaf-500 bg-black/5 px-2 py-1">
+            <p className="text-[11px] font-medium text-muted">
+              {message.replyTo.direction === "in" ? "Customer" : message.replyTo.direction === "out" ? "Shop" : "Message"}
+            </p>
+            <p className="line-clamp-2 text-xs text-foreground [overflow-wrap:anywhere]">{message.replyTo.text}</p>
+          </div>
+        )}
+
+        {message.media && (
+          <div className={text ? "mb-1.5" : undefined}>
+            <MediaAttachment message={message} cloudinaryConfigured={cloudinaryConfigured} />
+          </div>
+        )}
+        {message.location && (
+          <div className="mb-1">
+            <LocationCard location={message.location} />
+          </div>
+        )}
+        {text && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{text}</p>}
+
         <p className="mt-1 flex items-center justify-end gap-1 text-[11px] text-muted">
           <time dateTime={message.timestamp}>{formatClock(message.timestamp)}</time>
-          {outgoing && <Ticks status={message.status} />}
+          {outgoing && !isNote && <Ticks status={message.status} />}
         </p>
         {message.status === "failed" && (
           <p className="mt-1 text-xs text-danger [overflow-wrap:anywhere]">
             Not delivered{message.error ? `: ${message.error}` : "."}
+          </p>
+        )}
+
+        {reactions.length > 0 && (
+          <p className="mt-1 flex gap-1 text-base" aria-label="Reactions">
+            {reactions.map((emoji, i) => (
+              <span key={`${emoji}-${i}`} className="rounded-full bg-black/5 px-1.5 leading-6">
+                {emoji}
+              </span>
+            ))}
+          </p>
+        )}
+
+        {!isNote && (
+          <div className="mt-1 flex items-center gap-3 text-[11px] text-muted">
+            <button type="button" onClick={onReply} className="flex items-center gap-1 font-medium hover:text-foreground">
+              <CornerUpLeft size={12} aria-hidden /> Reply
+            </button>
+            {!outgoing && canReact && (
+              <button
+                type="button"
+                onClick={() => setPicking((p) => !p)}
+                disabled={reacting}
+                className="flex items-center gap-1 font-medium hover:text-foreground disabled:opacity-60"
+              >
+                <SmilePlus size={12} aria-hidden /> React
+              </button>
+            )}
+          </div>
+        )}
+        {picking && (
+          <div className="mt-1 flex gap-1" role="group" aria-label="Choose a reaction">
+            {QUICK_REACTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => void handleReact(emoji)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-black/5 text-lg hover:bg-black/10"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+        {reactError && (
+          <p role="alert" className="mt-1 text-xs text-danger">
+            {reactError}
           </p>
         )}
       </div>

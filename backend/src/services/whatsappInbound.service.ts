@@ -28,9 +28,10 @@ import {
   type InboundDeps,
   type InboundMessage,
 } from "../utils/whatsappWebhook";
-import { isBotPausedFor, recordEcho, recordInbound, recordOutbound, recordStatus } from "./whatsappChat.service";
+import { isBotPausedFor, recordEcho, recordInbound, recordOutbound, recordReaction, recordStatus } from "./whatsappChat.service";
 import { findCustomerName, findLastHandlingStaff, loadBills } from "./whatsappCustomer.service";
 import { getWhatsappConfig } from "./whatsappConfig.service";
+import { autoSaveInboundMedia } from "./whatsappMedia.service";
 import { recordChange } from "./whatsappHealth.service";
 import { notify } from "./push.service";
 import { sendWhatsAppContacts, sendWhatsAppMenu, sendWhatsAppText, type WhatsAppContact } from "./whatsapp.service";
@@ -236,6 +237,10 @@ export async function ingestWebhook(body: unknown): Promise<InboundMessage[]> {
 
   const fresh: InboundMessage[] = [];
   for (const message of ours) {
+    if (message.reaction) {
+      await recordReaction(message.reaction);
+      continue;
+    }
     if (!isConversational(message.type)) continue;
     const intent = detectIntent({ text: message.text, replyId: message.replyId });
     // Free text we can't answer, or an explicit request for a person: the team should look.
@@ -243,6 +248,7 @@ export async function ingestWebhook(body: unknown): Promise<InboundMessage[]> {
     const isNew = await recordInbound(message, { needsHuman });
     if (isNew) {
       fresh.push(message);
+      if (message.media) void autoSaveInboundMedia(message.id); // after the webhook is answered; never throws
       void announceToStaff(message, needsHuman); // after the webhook is answered; not awaited
     }
   }

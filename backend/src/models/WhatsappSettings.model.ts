@@ -12,6 +12,8 @@ const settingsSchema = new Schema(
     key: { type: String, required: true, unique: true },
     /** Master switch: off = no automatic replies, no outgoing messages, incoming webhooks ignored. */
     enabled: { type: Boolean, default: true },
+    /** Copy every photo / file a customer sends to Cloudinary as it arrives (Meta only keeps them ~30 days). */
+    autoSaveMedia: { type: Boolean, default: false },
 
     // ----- Credentials (all optional: unset falls back to the environment) -----
     phoneNumberId: { type: String, trim: true },

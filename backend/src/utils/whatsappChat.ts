@@ -68,10 +68,26 @@ const PLACEHOLDERS: Record<string, string> = {
   order: "[Order]",
 };
 
-/** What to store and show for an incoming message: its text, or a placeholder for what the app can't show yet. */
-export function describeInbound(message: Pick<InboundMessage, "type" | "text" | "replyTitle">): string {
+/**
+ * What to store and show for an incoming message: its text, or a short label
+ * ("[Photo] caption") that also serves as the chat-list preview. The media or
+ * location itself is stored next to it and drawn by the chat.
+ */
+export function describeInbound(
+  message: Pick<InboundMessage, "type" | "text" | "replyTitle"> & Partial<Pick<InboundMessage, "media" | "location">>,
+): string {
   if (message.text) return message.text;
   if (message.replyTitle) return `Chose: ${message.replyTitle}`;
+
+  const label = PLACEHOLDERS[message.media?.kind === "audio" && message.media.voice ? "voice" : (message.media?.kind ?? message.type)];
+  if (message.media) {
+    const detail = message.media.caption || (message.media.kind === "document" ? message.media.filename : "");
+    return `${label ?? `[${message.media.kind}]`}${detail ? ` ${detail}` : ""}`;
+  }
+  if (message.location) {
+    const detail = [message.location.name, message.location.address].filter(Boolean).join(", ");
+    return `[Location]${detail ? ` ${detail}` : ""}`;
+  }
   return PLACEHOLDERS[message.type] ?? `[${message.type} message]`;
 }
 

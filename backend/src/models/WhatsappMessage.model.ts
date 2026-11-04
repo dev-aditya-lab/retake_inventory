@@ -9,11 +9,46 @@ export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
  *  app           - a staff member, from the in-app chat
  *  bot           - the automatic menu / answers
  *  business_app  - typed in the WhatsApp Business app (only when coexistence is on)
+ *  note          - an internal note staff leave in the thread; never sent to the customer
  */
-export const MESSAGE_SOURCES = ["customer", "app", "bot", "business_app"] as const;
+export const MESSAGE_SOURCES = ["customer", "app", "bot", "business_app", "note"] as const;
 
 /** Messages are personal data: keep a year, then let MongoDB expire them. */
 export const MESSAGE_RETENTION_SECONDS = 365 * 24 * 60 * 60;
+
+/**
+ * A photo / video / voice note / document / sticker. The file itself stays at
+ * Meta, which keeps it for about 30 days and only hands out short-lived links
+ * (see whatsappMedia.service). "Saving" copies it to Cloudinary so it lasts.
+ */
+const mediaSchema = new Schema(
+  {
+    kind: { type: String, enum: ["image", "video", "audio", "document", "sticker"], required: true },
+    /** Meta's media id. */
+    id: { type: String },
+    mimeType: { type: String },
+    filename: { type: String },
+    sha256: { type: String },
+    caption: { type: String },
+    voice: { type: Boolean },
+    /** Set once a copy is in Cloudinary. */
+    savedPublicId: { type: String },
+    savedResourceType: { type: String },
+    savedAt: { type: Date },
+    savedBytes: { type: Number },
+  },
+  { _id: false },
+);
+
+const locationSchema = new Schema(
+  {
+    latitude: { type: Number, required: true },
+    longitude: { type: Number, required: true },
+    name: { type: String },
+    address: { type: String },
+  },
+  { _id: false },
+);
 
 const messageSchema = new Schema({
   conversation: { type: Types.ObjectId, ref: "WhatsappConversation", required: true },
@@ -27,6 +62,13 @@ const messageSchema = new Schema({
   error: { type: String },
   source: { type: String, enum: MESSAGE_SOURCES, default: "customer" },
   sentBy: { type: Types.ObjectId, ref: "User" },
+  media: { type: mediaSchema },
+  location: { type: locationSchema },
+  /** WhatsApp id of the message this one replies to (shown as a quote). */
+  replyToWaId: { type: String },
+  /** Emoji reactions on this message: the customer's and the team's. */
+  customerReaction: { type: String },
+  staffReaction: { type: String },
   timestamp: { type: Date, required: true, default: Date.now },
 });
 

@@ -25,7 +25,7 @@ export async function summary(req: Request, res: Response): Promise<void> {
 
 export async function listChats(req: Request, res: Response): Promise<void> {
   const filters = listChatsQuerySchema.parse(req.query);
-  res.json({ success: true, data: await chatService.listConversations(filters) });
+  res.json({ success: true, data: await chatService.listConversations({ ...filters, userId: req.user?.id }) });
 }
 
 export async function getChat(req: Request, res: Response): Promise<void> {
@@ -41,8 +41,8 @@ export async function markChatRead(req: Request, res: Response): Promise<void> {
 
 export async function sendChatMessage(req: Request, res: Response): Promise<void> {
   const id = objectIdSchema.parse(req.params.id);
-  const { text } = sendChatMessageSchema.parse(req.body);
-  await chatService.sendReply(userId(req), id, text);
+  const { text, replyTo } = sendChatMessageSchema.parse(req.body);
+  await chatService.sendReply(userId(req), id, text, replyTo);
   res.status(201).json({ success: true, data: null });
 }
 

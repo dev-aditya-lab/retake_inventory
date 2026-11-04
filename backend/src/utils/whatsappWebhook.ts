@@ -57,6 +57,27 @@ export interface InboundMessage {
   profileName?: string;
   /** Unix seconds, as Meta sends it. */
   timestamp?: string;
+  /** A photo, video, voice note, document or sticker the customer sent. */
+  media?: InboundMedia;
+  location?: { latitude: number; longitude: number; name?: string; address?: string };
+  /** Id of the message this one is a reply to (the customer swiped-to-reply). */
+  contextId?: string;
+  /** A reaction emoji on one of our messages. Not a chat message itself. */
+  reaction?: { messageId: string; emoji: string };
+}
+
+export type MediaKind = "image" | "video" | "audio" | "document" | "sticker";
+
+export interface InboundMedia {
+  kind: MediaKind;
+  /** Meta's media id: download with GET /{id}. Kept by Meta for about 30 days. */
+  id: string;
+  mimeType?: string;
+  sha256?: string;
+  filename?: string;
+  caption?: string;
+  /** A recorded voice note rather than an audio file. */
+  voice?: boolean;
 }
 
 export interface StatusEvent {
@@ -88,6 +109,15 @@ export interface WebhookChange {
 
 const textBody = z.object({ body: z.string() });
 const reply = z.object({ id: z.string(), title: z.string().optional() });
+const mediaObject = z.object({
+  id: z.string(),
+  mime_type: z.string().optional(),
+  sha256: z.string().optional(),
+  caption: z.string().optional(),
+  filename: z.string().optional(),
+  voice: z.boolean().optional(),
+});
+const MEDIA_KINDS = ["image", "video", "audio", "document", "sticker"] as const;
 
 const messageValueSchema = z.object({
   metadata: z.object({ phone_number_id: z.string().optional() }).optional(),
@@ -103,6 +133,16 @@ const messageValueSchema = z.object({
         timestamp: z.string().optional(),
         text: textBody.optional(),
         interactive: z.object({ list_reply: reply.optional(), button_reply: reply.optional() }).optional(),
+        image: mediaObject.optional(),
+        video: mediaObject.optional(),
+        audio: mediaObject.optional(),
+        document: mediaObject.optional(),
+        sticker: mediaObject.optional(),
+        location: z
+          .object({ latitude: z.number(), longitude: z.number(), name: z.string().optional(), address: z.string().optional() })
+          .optional(),
+        context: z.object({ id: z.string().optional() }).optional(),
+        reaction: z.object({ message_id: z.string(), emoji: z.string().optional() }).optional(),
       }),
     )
     .optional(),
@@ -183,7 +223,25 @@ export function extractInboundMessages(body: unknown): InboundMessage[] {
 
     for (const m of value.messages ?? []) {
       const picked = m.interactive?.list_reply ?? m.interactive?.button_reply;
+      const mediaKind = MEDIA_KINDS.find((kind) => m[kind] !== undefined);
+      const rawMedia = mediaKind ? m[mediaKind] : undefined;
       messages.push({
+        ...(mediaKind && rawMedia
+          ? {
+              media: {
+                kind: mediaKind,
+                id: rawMedia.id,
+                mimeType: rawMedia.mime_type,
+                sha256: rawMedia.sha256,
+                filename: rawMedia.filename,
+                caption: rawMedia.caption,
+                voice: rawMedia.voice,
+              },
+            }
+          : {}),
+        ...(m.location ? { location: m.location } : {}),
+        ...(m.context?.id ? { contextId: m.context.id } : {}),
+        ...(m.reaction ? { reaction: { messageId: m.reaction.message_id, emoji: m.reaction.emoji ?? "" } } : {}),
         id: m.id,
         from: m.from,
         type: m.type,

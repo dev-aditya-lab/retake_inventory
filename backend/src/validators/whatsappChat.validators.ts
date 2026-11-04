@@ -5,7 +5,8 @@ import { objectIdSchema, paginationQuerySchema } from "./common.validators";
 
 export const listChatsQuerySchema = paginationQuerySchema.extend({
   search: z.string().trim().max(100).optional(),
-  filter: z.enum(["all", "unread", "needs_reply"]).default("all"),
+  filter: z.enum(["all", "unread", "needs_reply", "mine", "unassigned", "resolved"]).default("all"),
+  label: z.string().trim().max(20).optional(),
 });
 
 export const threadQuerySchema = z.object({
@@ -17,6 +18,8 @@ export const setServiceSchema = z.object({ enabled: z.boolean() });
 
 export const sendChatMessageSchema = z.object({
   text: z.string().max(MAX_TEXT_LENGTH, `Messages can be at most ${MAX_TEXT_LENGTH} characters`),
+  /** A message of this chat to quote. */
+  replyTo: objectIdSchema.optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -97,7 +100,11 @@ export const sendButtonsSchema = z.object({
 
 export const sendMediaBodySchema = z.object({
   caption: z.string().max(1024, "Captions can be at most 1024 characters").default(""),
+  // Multipart fields arrive as strings.
+  saveCopy: z.enum(["true", "false"]).default("false"),
 });
+
+export const mediaSettingsSchema = z.object({ autoSave: z.boolean() });
 
 export const quickReplySchema = z.object({
   title: z.string().trim().min(1, "Give it a short title").max(40, "Title can be at most 40 characters"),
@@ -107,4 +114,69 @@ export const quickReplySchema = z.object({
 export const startChatSchema = z.object({
   phone: z.string().trim().min(5, "Enter the phone number").max(20),
   name: z.string().trim().max(80).optional(),
+});
+
+// ---------------------------------------------------------------------------
+// More message types
+// ---------------------------------------------------------------------------
+
+export const sendListSchema = z.object({
+  header: z.string().trim().max(60, "Header can be at most 60 characters").optional(),
+  body: z.string().trim().min(1, "Type the message first").max(1024, "At most 1024 characters"),
+  button: z.string().trim().min(1, "Name the button that opens the list").max(20, "Button text can be at most 20 characters"),
+  sectionTitle: z.string().trim().min(1).max(24, "Section title can be at most 24 characters").default("Options"),
+  rows: z
+    .array(
+      z.object({
+        title: z.string().trim().min(1, "Every option needs a title").max(24, "Option titles can be at most 24 characters"),
+        description: z.string().trim().max(72, "Descriptions can be at most 72 characters").optional(),
+      }),
+    )
+    .min(1, "Add at least one option")
+    .max(10, "A list can have at most 10 options"),
+});
+
+export const sendCtaSchema = z.object({
+  header: z.string().trim().max(60).optional(),
+  body: z.string().trim().min(1, "Type the message first").max(1024, "At most 1024 characters"),
+  footer: z.string().trim().max(60).optional(),
+  buttonText: z.string().trim().min(1, "Name the button").max(20, "Button text can be at most 20 characters"),
+  url: z
+    .string()
+    .trim()
+    .max(2000)
+    .refine((v) => /^https:\/\/\S+$/i.test(v), "The link must start with https://"),
+});
+
+export const sendLocationSchema = z.object({
+  latitude: z.number().min(-90, "Latitude must be between -90 and 90").max(90, "Latitude must be between -90 and 90"),
+  longitude: z.number().min(-180, "Longitude must be between -180 and 180").max(180, "Longitude must be between -180 and 180"),
+  name: z.string().trim().max(100).optional(),
+  address: z.string().trim().max(200).optional(),
+});
+
+export const sendContactSchema = z.object({
+  name: z.string().trim().min(1, "Enter the contact's name").max(100),
+  phone: z.string().trim().min(5, "Enter the phone number").max(20),
+  role: z.string().trim().max(60).optional(),
+  email: z.union([z.literal(""), z.string().trim().email("Enter a valid email")]).optional(),
+});
+
+/** One emoji (or a short sequence); empty removes the reaction. */
+export const reactionSchema = z.object({ emoji: z.string().max(16) });
+
+// ---------------------------------------------------------------------------
+// CRM
+// ---------------------------------------------------------------------------
+
+export const updateConversationSchema = z
+  .object({
+    labels: z.array(z.string().max(20, "Labels can be at most 20 characters")).max(5, "At most 5 labels").optional(),
+    assignedTo: objectIdSchema.nullable().optional(),
+    status: z.enum(["open", "resolved"]).optional(),
+  })
+  .refine((v) => v.labels !== undefined || v.assignedTo !== undefined || v.status !== undefined, { message: "Nothing to change" });
+
+export const addNoteSchema = z.object({
+  text: z.string().trim().min(1, "Write the note first").max(2000, "Notes can be at most 2000 characters"),
 });
