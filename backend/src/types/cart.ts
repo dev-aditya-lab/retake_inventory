@@ -15,6 +15,8 @@ export interface CartItem {
   sku: string;
   hsnCode: string;
   unitPrice: number;
+  /** A price typed in at the counter. Replaces the list price for this line when the bill is made. */
+  priceOverride?: number;
   quantity: number;
 }
 

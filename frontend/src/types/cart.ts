@@ -21,6 +21,8 @@ export interface CartItem {
   sku: string;
   hsnCode: string;
   unitPrice: number;
+  /** A price typed in at the counter, used instead of the list price for this line. */
+  priceOverride?: number;
   quantity: number;
 }
 
@@ -59,6 +61,10 @@ export interface CartData {
 export interface CartPreviewLine {
   productId: string;
   unitPrice: number;
+  /** The product's own price for this kind of bill (null if not set). */
+  listPrice: number | null;
+  /** True when the cashier changed the price on this line. */
+  priceEdited: boolean;
   gstRate: number;
   taxableValue: number;
   cgst: number;
@@ -81,7 +87,7 @@ export interface NonGstCartPreview {
   gstApplicable: false;
   payment: PaymentPreview;
   priceList: "b2b" | "retail";
-  lines: { productId: string; unitPrice: number; total: number }[];
+  lines: { productId: string; unitPrice: number; listPrice: number | null; priceEdited: boolean; total: number }[];
   otherCharges: number;
   subtotal: number;
   grandTotal: number;

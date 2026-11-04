@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Minus, Plus, QrCode, Trash2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { AlertTriangle, Minus, Pencil, Plus, QrCode, Trash2 } from "lucide-react";
 import { ScannerInput } from "@/components/scanner/ScannerInput";
 import { PlaceOfSupplySelect } from "@/components/gst/PlaceOfSupplySelect";
 import { BuyerBadge } from "@/components/gst/BuyerBadge";
@@ -35,6 +35,9 @@ const amountReceivedFor = (mode: PayMode, receivedText: string): number | null =
 /** What a cart line needs to show: its price, its total and — on GST bills — its rate. */
 interface PricedLine {
   unitPrice: number;
+  /** The product's own price; differs from unitPrice when the cashier edited it. */
+  listPrice: number | null;
+  priceEdited: boolean;
   total: number;
   gstRate?: number;
 }
@@ -107,6 +110,9 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
     }
   }
 
+  /** What the typed-in price means on this kind of bill. */
+  const priceFieldLabel = nonGstPreview ? "Price" : gstPreview?.priceMode === "inclusive" ? "Price incl. GST" : "Price before GST";
+
   function linePriceNote(priced: PricedLine) {
     if (nonGstPreview) return ` · ${nonGstPreview.priceList === "retail" ? "MRP" : "B2B"} ${formatCurrency(priced.unitPrice)}`;
     if (gstPreview?.priceMode === "inclusive") return ` · MRP ${formatCurrency(priced.unitPrice)}`;
@@ -129,51 +135,19 @@ export function CartPanel({ cart, onCheckedOut }: { cart: CartData; onCheckedOut
           <p className="p-4 text-sm text-muted">No items yet — scan a product to add it.</p>
         ) : (
           <ul className="divide-y divide-border">
-            {cart.items.map((item) => {
-              const priced = lineById.get(item.productId);
-              return (
-                <li key={item.productId} className="flex items-center gap-3 p-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
-                    <p className="text-xs text-muted">
-                      {item.sku}
-                      {priced && linePriceNote(priced)}
-                      {!priced && preview && " · can't be billed yet"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => updateItem({ id: cart.id, productId: item.productId, quantity: item.quantity - 1 })}
-                      className="rounded-md border border-border p-1.5 text-foreground hover:bg-ink-100"
-                      aria-label="Decrease quantity"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => updateItem({ id: cart.id, productId: item.productId, quantity: item.quantity + 1 })}
-                      className="rounded-md border border-border p-1.5 text-foreground hover:bg-ink-100"
-                      aria-label="Increase quantity"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                  <p className="w-20 shrink-0 text-right text-sm font-medium text-foreground">
-                    {priced ? formatCurrency(priced.total) : "—"}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => removeItem({ id: cart.id, productId: item.productId })}
-                    className="shrink-0 text-danger hover:opacity-70"
-                    aria-label="Remove item"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </li>
-              );
-            })}
+            {cart.items.map((item) => (
+              <CartLine
+                key={item.productId}
+                item={item}
+                priced={lineById.get(item.productId)}
+                hasPreview={!!preview}
+                priceNote={linePriceNote}
+                priceLabel={priceFieldLabel}
+                onQuantity={(quantity) => updateItem({ id: cart.id, productId: item.productId, quantity })}
+                onPrice={(price) => updateItem({ id: cart.id, productId: item.productId, price }).unwrap().then(() => undefined)}
+                onRemove={() => removeItem({ id: cart.id, productId: item.productId })}
+              />
+            ))}
           </ul>
         )}
       </div>
@@ -685,5 +659,165 @@ function PaymentFields({
         </div>
       )}
     </div>
+  );
+}
+
+
+/**
+ * One line of the cart. Tapping "Edit price" opens a small box to type the price
+ * this customer pays for the item (a negotiated rate, a damaged piece). The edit
+ * only affects this bill, never the product's own price.
+ */
+function CartLine({
+  item,
+  priced,
+  hasPreview,
+  priceNote,
+  priceLabel,
+  onQuantity,
+  onPrice,
+  onRemove,
+}: {
+  item: CartData["items"][number];
+  priced: PricedLine | undefined;
+  hasPreview: boolean;
+  priceNote: (priced: PricedLine) => string;
+  priceLabel: string;
+  onQuantity: (quantity: number) => void;
+  /** Rejects with the server's error if the price is refused. */
+  onPrice: (price: number | null) => Promise<void>;
+  onRemove: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function startEditing() {
+    setText(priced ? String(priced.unitPrice) : "");
+    setError(null);
+    setEditing(true);
+  }
+
+  async function apply(price: number | null) {
+    setError(null);
+    setSaving(true);
+    try {
+      await onPrice(price);
+      setEditing(false);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Could not change the price — try again."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleSave(e: FormEvent) {
+    e.preventDefault();
+    const price = Number(text);
+    if (!text.trim() || !Number.isFinite(price) || price <= 0) return setError("Enter a price greater than 0.");
+    if (priced && !priced.priceEdited && price === priced.unitPrice) return setEditing(false); // nothing changed
+    void apply(price);
+  }
+
+  return (
+    <li className="flex flex-col gap-2 p-3">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
+          <p className="text-xs text-muted">
+            {item.sku}
+            {priced && priceNote(priced)}
+            {!priced && hasPreview && " · can't be billed yet"}
+          </p>
+          {priced && (
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              {priced.priceEdited && (
+                <span className="rounded bg-chilli-50 px-1.5 py-0.5 font-medium text-chilli-800">
+                  Price edited{priced.listPrice !== null && ` (was ${formatCurrency(priced.listPrice)})`}
+                </span>
+              )}
+              {!editing && (
+                <button type="button" onClick={startEditing} className="flex items-center gap-1 font-medium text-primary">
+                  <Pencil size={12} aria-hidden /> Edit price
+                </button>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onQuantity(item.quantity - 1)}
+            className="rounded-md border border-border p-1.5 text-foreground hover:bg-ink-100"
+            aria-label="Decrease quantity"
+          >
+            <Minus size={14} />
+          </button>
+          <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+          <button
+            type="button"
+            onClick={() => onQuantity(item.quantity + 1)}
+            className="rounded-md border border-border p-1.5 text-foreground hover:bg-ink-100"
+            aria-label="Increase quantity"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+        <p className="w-20 shrink-0 text-right text-sm font-medium text-foreground">{priced ? formatCurrency(priced.total) : "—"}</p>
+        <button type="button" onClick={onRemove} className="shrink-0 text-danger hover:opacity-70" aria-label="Remove item">
+          <Trash2 size={16} />
+        </button>
+      </div>
+
+      {editing && (
+        <form onSubmit={handleSave} className="flex flex-col gap-2 rounded-md bg-surface p-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-foreground">
+            {priceLabel} (for one)
+            <input
+              autoFocus
+              type="number"
+              inputMode="decimal"
+              min="0.01"
+              step="0.01"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              className="input text-base"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-xs text-danger">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-60"
+            >
+              {saving ? "Saving…" : "Use this price"}
+            </button>
+            {priced?.priceEdited && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void apply(null)}
+                className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-ink-100 disabled:opacity-60"
+              >
+                Back to {priced.listPrice !== null ? formatCurrency(priced.listPrice) : "list price"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="rounded-md px-3 py-2 text-xs font-medium text-muted hover:bg-ink-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </li>
   );
 }

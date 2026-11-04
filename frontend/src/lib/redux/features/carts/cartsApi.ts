@@ -88,11 +88,12 @@ export const cartsApi = apiSlice.injectEndpoints({
         );
       },
     }),
-    updateCartItem: builder.mutation<CartData, { id: string; productId: string; quantity: number }>({
-      query: ({ id, productId, quantity }) => ({
+    updateCartItem: builder.mutation<CartData, { id: string; productId: string; quantity?: number; price?: number | null }>({
+      // `price` is a price typed in at the counter; null puts the line back to the list price.
+      query: ({ id, productId, quantity, price }) => ({
         url: `/api/carts/${id}/items/${productId}`,
         method: "PATCH",
-        body: { quantity },
+        body: { quantity, price },
       }),
       transformResponse: unwrap<CartData>,
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {

@@ -7,9 +7,10 @@ import { gstStateName } from "../config/gst";
 import { computeInvoiceTax, type PriceMode } from "../utils/gstCalc";
 import { round2 } from "../utils/gst";
 import { istDayKey } from "../utils/istDate";
-import { computeNonGstTotals, nonGstPriceFor, priceListLabel } from "../utils/nonGstBill";
+import { effectiveUnitPrice, normalizePriceOverride } from "../utils/cartPricing";
+import { computeNonGstTotals, nonGstPriceFor, priceListLabel, type NonGstLineInput } from "../utils/nonGstBill";
 import type { PriceList } from "../models/NonGstBill.model";
-import { lineFromProduct, productGstProblems, resolveBuyer, type BuyerContext } from "./gstDocument.service";
+import { lineFromProduct, priceFor, productGstProblems, resolveBuyer, type BuyerContext, type GstBillLine } from "./gstDocument.service";
 import type { CartCustomer, CartData, CartGst, PaymentMethod } from "../types/cart";
 
 // Draft carts are ephemeral working state (not yet a real sale) — Redis is
@@ -170,6 +171,29 @@ export async function updateItemQuantity(
   return cart;
 }
 
+/**
+ * Sets (or, with null, clears) the price typed in at the counter for one line.
+ * The edit lives on the cart item, so the preview and checkout both bill it.
+ */
+export async function setItemPrice(userId: string, id: string, productId: string, price: number | null): Promise<CartData> {
+  const cart = await getCart(userId, id);
+  const item = cart.items.find((i) => i.productId === productId);
+  if (!item) throw ApiError.notFound("Item not in cart");
+
+  if (price === null) {
+    delete item.priceOverride;
+  } else {
+    try {
+      item.priceOverride = normalizePriceOverride(price);
+    } catch (err) {
+      throw ApiError.badRequest(err instanceof Error ? err.message : "Enter a valid price");
+    }
+  }
+
+  await saveCart(cart);
+  return cart;
+}
+
 export async function removeItem(userId: string, id: string, productId: string): Promise<CartData> {
   const cart = await getCart(userId, id);
   cart.items = cart.items.filter((i) => i.productId !== productId);
@@ -236,19 +260,24 @@ export async function previewCart(cart: CartData) {
   const products = await Product.find({ _id: { $in: cart.items.map((i) => i.productId) } }).lean();
   const byId = new Map(products.map((p) => [String(p._id), p]));
 
-  const lines = [];
+  const lines: (GstBillLine & { listPrice: number | null; priceEdited: boolean })[] = [];
   for (const item of cart.items) {
     const product = byId.get(item.productId);
     if (!product) {
       problems.push(`"${item.name}" no longer exists — remove it`);
       continue;
     }
-    const missing = productGstProblems(product, buyer.priceMode);
+    // An edited price stands in for the product's list price, so a missing MRP / B2B price no longer blocks the line.
+    const missing = productGstProblems(product, item.priceOverride === undefined ? buyer.priceMode : undefined);
     if (missing.length > 0) {
       problems.push(`"${product.name}" needs its ${missing.join(", ")} set before it can be billed`);
       continue;
     }
-    lines.push(lineFromProduct(product, item.quantity, buyer.priceMode));
+    lines.push({
+      ...lineFromProduct(product, item.quantity, buyer.priceMode, item.priceOverride),
+      listPrice: priceFor(product, buyer.priceMode),
+      priceEdited: item.priceOverride !== undefined,
+    });
   }
 
   const tax = lines.length > 0
@@ -267,6 +296,8 @@ export async function previewCart(cart: CartData) {
     lines: tax?.lines.map((l) => ({
       productId: l.product,
       unitPrice: l.unitPrice,
+      listPrice: lines.find((x) => x.product === l.product)?.listPrice ?? null,
+      priceEdited: lines.find((x) => x.product === l.product)?.priceEdited ?? false,
       gstRate: l.gstRate,
       taxableValue: l.taxableValue,
       cgst: l.cgst,
@@ -297,19 +328,27 @@ async function previewNonGstCart(cart: CartData) {
   const products = await Product.find({ _id: { $in: cart.items.map((i) => i.productId) } }).lean();
   const byId = new Map(products.map((p) => [String(p._id), p]));
 
-  const lines = [];
+  const lines: (NonGstLineInput & { listPrice: number | null; priceEdited: boolean })[] = [];
   for (const item of cart.items) {
     const product = byId.get(item.productId);
     if (!product) {
       problems.push(`"${item.name}" no longer exists — remove it`);
       continue;
     }
-    const unitPrice = nonGstPriceFor(product, priceList);
+    const listPrice = nonGstPriceFor(product, priceList);
+    const unitPrice = effectiveUnitPrice(item.priceOverride, listPrice);
     if (unitPrice === null) {
       problems.push(`"${product.name}" needs its ${priceListLabel(priceList)} set before it can be billed`);
       continue;
     }
-    lines.push({ product: String(product._id), name: product.name, quantity: item.quantity, unitPrice });
+    lines.push({
+      product: String(product._id),
+      name: product.name,
+      quantity: item.quantity,
+      unitPrice,
+      listPrice,
+      priceEdited: item.priceOverride !== undefined,
+    });
   }
 
   const totals = lines.length > 0 ? computeNonGstTotals(lines, cart.otherCharges) : null;
@@ -319,7 +358,17 @@ async function previewNonGstCart(cart: CartData) {
     gstApplicable: false as const,
     payment,
     priceList,
-    lines: totals?.lines.map((l) => ({ productId: l.product, unitPrice: l.unitPrice, total: l.total })) ?? [],
+    lines:
+      totals?.lines.map((l) => {
+        const source = lines.find((x) => x.product === l.product);
+        return {
+          productId: l.product,
+          unitPrice: l.unitPrice,
+          listPrice: source?.listPrice ?? null,
+          priceEdited: source?.priceEdited ?? false,
+          total: l.total,
+        };
+      }) ?? [],
     otherCharges: totals?.otherCharges ?? 0,
     subtotal: totals?.subtotal ?? 0,
     grandTotal: totals?.grandTotal ?? 0,

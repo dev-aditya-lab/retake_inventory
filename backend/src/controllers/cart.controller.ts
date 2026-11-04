@@ -40,12 +40,17 @@ export async function addItem(req: Request, res: Response): Promise<void> {
 }
 
 export async function updateItem(req: Request, res: Response): Promise<void> {
-  const cart = await cartService.updateItemQuantity(
-    requireUserId(req),
-    req.params.id as string,
-    req.params.productId as string,
-    req.body.quantity,
-  );
+  const userId = requireUserId(req);
+  const id = req.params.id as string;
+  const productId = req.params.productId as string;
+  const { quantity, price } = req.body as { quantity?: number; price?: number | null };
+
+  // Quantity first: removing a line (quantity 0) makes a price edit meaningless.
+  let cart = quantity !== undefined ? await cartService.updateItemQuantity(userId, id, productId, quantity) : null;
+  if (price !== undefined && (quantity === undefined || quantity > 0)) {
+    cart = await cartService.setItemPrice(userId, id, productId, price);
+  }
+  cart ??= await cartService.getCart(userId, id);
   res.json({ success: true, data: await cartService.withPreview(cart) });
 }
 

@@ -51,9 +51,11 @@ export async function checkout(userId: string, cartId: string) {
         products.set(item.productId, product);
       }
 
-      // Prices come from the product at checkout: the B2B price when the
-      // counter chose B2B, the MRP otherwise.
-      const lines = cart.items.map((item) => lineFromProduct(products.get(item.productId)!, item.quantity, buyer.priceMode));
+      // Prices come from the product at checkout (the B2B price when the
+      // counter chose B2B, the MRP otherwise) unless the cashier typed one in.
+      const lines = cart.items.map((item) =>
+        lineFromProduct(products.get(item.productId)!, item.quantity, buyer.priceMode, item.priceOverride),
+      );
       const { fields } = buildGstDocument({ customer, lines, otherCharges: cart.otherCharges, priceMode });
 
       // What was handed over now (all of it, an advance, or nothing) — checked before a number is issued.

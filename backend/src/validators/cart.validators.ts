@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PRICE_OVERRIDE } from "../utils/cartPricing";
 
 const customerSchema = z.object({
   name: z.string().trim().min(1).optional(),
@@ -43,6 +44,10 @@ export const addCartItemSchema = z
   })
   .refine((v) => v.productId || v.ean13, { message: "Provide either productId or ean13" });
 
-export const updateCartItemSchema = z.object({
-  quantity: z.number().int().min(0),
-});
+export const updateCartItemSchema = z
+  .object({
+    quantity: z.number().int().min(0).optional(),
+    // The price typed in at the counter for this line; null goes back to the list price.
+    price: z.number().positive("Enter a price greater than 0").max(MAX_PRICE_OVERRIDE, "That price is too large").nullable().optional(),
+  })
+  .refine((v) => v.quantity !== undefined || v.price !== undefined, { message: "Provide a quantity or a price" });

@@ -5,6 +5,7 @@ import { Product } from "../models/Product.model";
 import { StockMovement } from "../models/StockMovement.model";
 import { ApiError } from "../utils/ApiError";
 import { computeStockDeltas } from "../utils/invoiceEdit";
+import { effectiveUnitPrice } from "../utils/cartPricing";
 import { computeNonGstTotals, NON_GST_CUSTOMER_KEY_EXPR, nonGstPriceFor, priceListLabel } from "../utils/nonGstBill";
 import { numberToWordsINR } from "../utils/numberToWords";
 import { buildOpeningPayment, paymentFilterQuery, summarizePayment, type PaymentFilter } from "../utils/payments";
@@ -63,7 +64,7 @@ export async function checkout(userId: string, cartId: string) {
         if (product.quantityInStock < item.quantity) {
           throw ApiError.badRequest(`Not enough stock for "${item.name}" — only ${product.quantityInStock} left`);
         }
-        const unitPrice = nonGstPriceFor(product, priceList);
+        const unitPrice = effectiveUnitPrice(item.priceOverride, nonGstPriceFor(product, priceList));
         if (unitPrice === null) {
           throw ApiError.badRequest(`"${product.name}" can't be billed yet — set its ${priceListLabel(priceList)} on the product first.`);
         }
