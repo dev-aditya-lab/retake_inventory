@@ -34,6 +34,7 @@ whatsappChatRouter.post("/chats/:id/messages", whatsappSendLimiter, chatControll
 whatsappChatRouter.post("/chats/:id/template", whatsappSendLimiter, manage.sendTemplate);
 whatsappChatRouter.post("/chats/:id/media", whatsappSendLimiter, uploadChatMedia, manage.sendMedia);
 whatsappChatRouter.post("/chats/:id/buttons", whatsappSendLimiter, manage.sendButtons);
+whatsappChatRouter.post("/chats/:id/saved", whatsappSendLimiter, manage.sendSaved);
 whatsappChatRouter.post("/chats/:id/list", whatsappSendLimiter, manage.sendList);
 whatsappChatRouter.post("/chats/:id/cta", whatsappSendLimiter, manage.sendCta);
 whatsappChatRouter.post("/chats/:id/location", whatsappSendLimiter, manage.sendLocation);
@@ -52,8 +53,39 @@ whatsappChatRouter.delete("/templates/:name", adminOnly, manage.deleteTemplate);
 
 whatsappChatRouter.get("/quick-replies", manage.listQuickReplies);
 whatsappChatRouter.post("/quick-replies", adminOnly, manage.createQuickReply);
+whatsappChatRouter.post("/quick-replies/media", adminOnly, uploadChatMedia, manage.createSavedMedia);
+whatsappChatRouter.get("/quick-replies/:id/file", manage.viewSavedFile);
 whatsappChatRouter.put("/quick-replies/:id", adminOnly, manage.updateQuickReply);
 whatsappChatRouter.delete("/quick-replies/:id", adminOnly, manage.deleteQuickReply);
+
+// ----- Automations (admin) -----
+whatsappChatRouter.get("/automations", adminOnly, manage.listAutomations);
+whatsappChatRouter.post("/automations", adminOnly, manage.createAutomation);
+whatsappChatRouter.get("/automations/hours", adminOnly, manage.getHours);
+whatsappChatRouter.put("/automations/hours", adminOnly, manage.updateHours);
+whatsappChatRouter.put("/automations/:id", adminOnly, manage.updateAutomation);
+whatsappChatRouter.patch("/automations/:id", adminOnly, manage.toggleAutomation);
+whatsappChatRouter.delete("/automations/:id", adminOnly, manage.deleteAutomation);
+
+// ----- Broadcasts (admin) -----
+whatsappChatRouter.post("/broadcasts/audience", adminOnly, manage.previewBroadcastAudience);
+whatsappChatRouter.get("/broadcasts", adminOnly, manage.listBroadcasts);
+whatsappChatRouter.post("/broadcasts", adminOnly, manage.createBroadcast);
+whatsappChatRouter.get("/broadcasts/:id", adminOnly, manage.getBroadcast);
+whatsappChatRouter.post("/broadcasts/:id/start", adminOnly, manage.startBroadcast);
+whatsappChatRouter.post("/broadcasts/:id/cancel", adminOnly, manage.cancelBroadcast);
+whatsappChatRouter.delete("/broadcasts/:id", adminOnly, manage.deleteBroadcast);
+
+// ----- Deleting chats, business profile, status, usage (admin) -----
+whatsappChatRouter.post("/chats/delete", adminOnly, manage.deleteManyChats);
+whatsappChatRouter.delete("/chats/:id", adminOnly, manage.deleteChat);
+whatsappChatRouter.get("/profile", adminOnly, manage.getBusinessProfile);
+whatsappChatRouter.put("/profile", adminOnly, manage.updateBusinessProfile);
+whatsappChatRouter.post("/profile/picture", adminOnly, uploadChatMedia, manage.updateBusinessPicture);
+whatsappChatRouter.post("/profile/name", adminOnly, manage.requestBusinessName);
+whatsappChatRouter.get("/status", adminOnly, manage.apiStatus);
+whatsappChatRouter.get("/usage", adminOnly, manage.usage);
+whatsappChatRouter.get("/analytics", adminOnly, manage.analytics);
 
 // ----- Service switch, connection settings, account health (admin) -----
 whatsappChatRouter.put("/settings", adminOnly, chatController.setServiceEnabled);

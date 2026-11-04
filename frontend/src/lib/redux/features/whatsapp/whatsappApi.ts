@@ -1,5 +1,22 @@
 import { apiSlice, unwrap } from "../../apiSlice";
 import type {
+  AnalyticsData,
+  ApiStatus,
+  AudienceInput,
+  AudiencePreview,
+  Automation,
+  AutomationInput,
+  Broadcast,
+  BroadcastDetail,
+  BusinessHours,
+  BusinessProfile,
+  CreateBroadcastInput,
+  DeleteChatsResult,
+  SavedInput,
+  SavedMessage,
+  UpdateProfileInput,
+  UsageData,
+  UsageRange,
   ChatFilter,
   ContactInput,
   ConversationPatch,
@@ -210,6 +227,156 @@ export const whatsappApi = apiSlice.injectEndpoints({
       providesTags: ["WhatsappLabel"],
     }),
 
+    sendChatSaved: builder.mutation<void, { id: string; savedId: string }>({
+      query: ({ id, savedId }) => ({ url: `/api/whatsapp/chats/${id}/saved`, method: "POST", body: { savedId } }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+
+    // ----- Deleting chats -----
+    deleteChats: builder.mutation<DeleteChatsResult, { ids: string[]; deleteSavedFiles: boolean }>({
+      query: (body) => ({ url: "/api/whatsapp/chats/delete", method: "POST", body }),
+      transformResponse: unwrap<DeleteChatsResult>,
+      invalidatesTags: ["Whatsapp", "WhatsappLabel"],
+    }),
+
+    // ----- Business profile -----
+    getBusinessProfile: builder.query<BusinessProfile, void>({
+      query: () => "/api/whatsapp/profile",
+      transformResponse: unwrap<BusinessProfile>,
+      providesTags: ["WhatsappProfile"],
+    }),
+    updateBusinessProfile: builder.mutation<BusinessProfile, UpdateProfileInput>({
+      query: (body) => ({ url: "/api/whatsapp/profile", method: "PUT", body }),
+      transformResponse: unwrap<BusinessProfile>,
+      invalidatesTags: ["WhatsappProfile"],
+    }),
+    updateBusinessPicture: builder.mutation<BusinessProfile, File>({
+      query: (file) => {
+        const body = new FormData();
+        body.append("file", file);
+        return { url: "/api/whatsapp/profile/picture", method: "POST", body };
+      },
+      transformResponse: unwrap<BusinessProfile>,
+      invalidatesTags: ["WhatsappProfile"],
+    }),
+    requestBusinessName: builder.mutation<BusinessProfile, string>({
+      query: (name) => ({ url: "/api/whatsapp/profile/name", method: "POST", body: { name } }),
+      transformResponse: unwrap<BusinessProfile>,
+      invalidatesTags: ["WhatsappProfile"],
+    }),
+
+    // ----- Status, usage, analytics -----
+    getWhatsappApiStatus: builder.query<ApiStatus, void>({
+      query: () => "/api/whatsapp/status",
+      transformResponse: unwrap<ApiStatus>,
+    }),
+    getWhatsappUsage: builder.query<UsageData, UsageRange>({
+      query: (range) => `/api/whatsapp/usage?range=${range}`,
+      transformResponse: unwrap<UsageData>,
+    }),
+    getWhatsappAnalytics: builder.query<AnalyticsData, UsageRange>({
+      query: (range) => `/api/whatsapp/analytics?range=${range}`,
+      transformResponse: unwrap<AnalyticsData>,
+    }),
+
+    // ----- Saved messages (the library) -----
+    createSavedMessage: builder.mutation<SavedMessage, SavedInput>({
+      query: (body) => ({ url: "/api/whatsapp/quick-replies", method: "POST", body }),
+      transformResponse: unwrap<SavedMessage>,
+      invalidatesTags: ["WhatsappQuickReply"],
+    }),
+    createSavedMedia: builder.mutation<SavedMessage, { title: string; caption: string; file: File }>({
+      query: ({ title, caption, file }) => {
+        const body = new FormData();
+        body.append("title", title);
+        body.append("caption", caption);
+        body.append("file", file);
+        return { url: "/api/whatsapp/quick-replies/media", method: "POST", body };
+      },
+      transformResponse: unwrap<SavedMessage>,
+      invalidatesTags: ["WhatsappQuickReply"],
+    }),
+    updateSavedMessage: builder.mutation<SavedMessage, { id: string } & SavedInput>({
+      query: ({ id, ...body }) => ({ url: `/api/whatsapp/quick-replies/${id}`, method: "PUT", body }),
+      transformResponse: unwrap<SavedMessage>,
+      invalidatesTags: ["WhatsappQuickReply"],
+    }),
+
+    // ----- Broadcasts -----
+    previewBroadcastAudience: builder.mutation<AudiencePreview, AudienceInput>({
+      query: (body) => ({ url: "/api/whatsapp/broadcasts/audience", method: "POST", body }),
+      transformResponse: unwrap<AudiencePreview>,
+    }),
+    listBroadcasts: builder.query<Broadcast[], void>({
+      query: () => "/api/whatsapp/broadcasts",
+      transformResponse: unwrap<Broadcast[]>,
+      providesTags: ["WhatsappBroadcast"],
+    }),
+    getBroadcast: builder.query<BroadcastDetail, { id: string; status?: string; page?: number }>({
+      query: ({ id, status, page = 1 }) =>
+        `/api/whatsapp/broadcasts/${id}?page=${page}&limit=50${status ? `&status=${status}` : ""}`,
+      transformResponse: unwrap<BroadcastDetail>,
+      providesTags: ["WhatsappBroadcast"],
+    }),
+    createBroadcast: builder.mutation<{ id: string }, CreateBroadcastInput>({
+      query: (body) => ({ url: "/api/whatsapp/broadcasts", method: "POST", body }),
+      transformResponse: unwrap<{ id: string }>,
+      invalidatesTags: ["WhatsappBroadcast"],
+    }),
+    startBroadcast: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/whatsapp/broadcasts/${id}/start`, method: "POST" }),
+      transformResponse: done,
+      invalidatesTags: ["WhatsappBroadcast"],
+    }),
+    cancelBroadcast: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/whatsapp/broadcasts/${id}/cancel`, method: "POST" }),
+      transformResponse: done,
+      invalidatesTags: ["WhatsappBroadcast"],
+    }),
+    deleteBroadcast: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/whatsapp/broadcasts/${id}`, method: "DELETE" }),
+      transformResponse: done,
+      invalidatesTags: ["WhatsappBroadcast"],
+    }),
+
+    // ----- Automations -----
+    listAutomations: builder.query<Automation[], void>({
+      query: () => "/api/whatsapp/automations",
+      transformResponse: unwrap<Automation[]>,
+      providesTags: ["WhatsappAutomation"],
+    }),
+    createAutomation: builder.mutation<Automation, AutomationInput>({
+      query: (body) => ({ url: "/api/whatsapp/automations", method: "POST", body }),
+      transformResponse: unwrap<Automation>,
+      invalidatesTags: ["WhatsappAutomation"],
+    }),
+    updateAutomation: builder.mutation<Automation, { id: string } & AutomationInput>({
+      query: ({ id, ...body }) => ({ url: `/api/whatsapp/automations/${id}`, method: "PUT", body }),
+      transformResponse: unwrap<Automation>,
+      invalidatesTags: ["WhatsappAutomation"],
+    }),
+    toggleAutomation: builder.mutation<void, { id: string; enabled: boolean }>({
+      query: ({ id, enabled }) => ({ url: `/api/whatsapp/automations/${id}`, method: "PATCH", body: { enabled } }),
+      transformResponse: done,
+      invalidatesTags: ["WhatsappAutomation"],
+    }),
+    deleteAutomation: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/whatsapp/automations/${id}`, method: "DELETE" }),
+      transformResponse: done,
+      invalidatesTags: ["WhatsappAutomation"],
+    }),
+    getBusinessHours: builder.query<BusinessHours, void>({
+      query: () => "/api/whatsapp/automations/hours",
+      transformResponse: unwrap<BusinessHours>,
+      providesTags: ["WhatsappAutomation"],
+    }),
+    saveBusinessHours: builder.mutation<BusinessHours, BusinessHours>({
+      query: (body) => ({ url: "/api/whatsapp/automations/hours", method: "PUT", body }),
+      transformResponse: unwrap<BusinessHours>,
+      invalidatesTags: ["WhatsappAutomation"],
+    }),
+
     startWhatsappChat: builder.mutation<{ id: string }, { phone: string; name?: string }>({
       query: (body) => ({ url: "/api/whatsapp/chats/start", method: "POST", body }),
       transformResponse: unwrap<{ id: string }>,
@@ -261,6 +428,32 @@ export const {
   useSendChatMediaMutation,
   useSendChatButtonsMutation,
   useStartWhatsappChatMutation,
+  useSendChatSavedMutation,
+  useDeleteChatsMutation,
+  useGetBusinessProfileQuery,
+  useUpdateBusinessProfileMutation,
+  useUpdateBusinessPictureMutation,
+  useRequestBusinessNameMutation,
+  useGetWhatsappApiStatusQuery,
+  useGetWhatsappUsageQuery,
+  useGetWhatsappAnalyticsQuery,
+  useCreateSavedMessageMutation,
+  useCreateSavedMediaMutation,
+  useUpdateSavedMessageMutation,
+  usePreviewBroadcastAudienceMutation,
+  useListBroadcastsQuery,
+  useGetBroadcastQuery,
+  useCreateBroadcastMutation,
+  useStartBroadcastMutation,
+  useCancelBroadcastMutation,
+  useDeleteBroadcastMutation,
+  useListAutomationsQuery,
+  useCreateAutomationMutation,
+  useUpdateAutomationMutation,
+  useToggleAutomationMutation,
+  useDeleteAutomationMutation,
+  useGetBusinessHoursQuery,
+  useSaveBusinessHoursMutation,
   useSendChatListMutation,
   useSendChatCtaMutation,
   useSendChatLocationMutation,

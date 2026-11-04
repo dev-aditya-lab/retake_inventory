@@ -1,6 +1,9 @@
 import { createApi, fetchBaseQuery, type BaseQueryFn, type FetchArgs, type FetchBaseQueryError } from "@reduxjs/toolkit/query/react";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { API_BASE_URL } from "@/lib/apiBase";
+import { refreshSession } from "@/lib/refreshSession";
+
+export { API_BASE_URL };
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -41,6 +44,6 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 export const apiSlice = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["User", "Product", "Invoice", "StockMovement", "Cart", "Customer", "SkuCode", "HsnCode", "Report", "Gst", "CreditNote", "NonGstBill", "Whatsapp", "WhatsappConfig", "WhatsappTemplate", "WhatsappQuickReply", "WhatsappLabel"],
+  tagTypes: ["User", "Product", "Invoice", "StockMovement", "Cart", "Customer", "SkuCode", "HsnCode", "Report", "Gst", "CreditNote", "NonGstBill", "Whatsapp", "WhatsappConfig", "WhatsappTemplate", "WhatsappQuickReply", "WhatsappLabel", "WhatsappProfile", "WhatsappBroadcast", "WhatsappAutomation"],
   endpoints: () => ({}),
 });

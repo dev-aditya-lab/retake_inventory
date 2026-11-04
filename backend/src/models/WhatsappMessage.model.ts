@@ -9,9 +9,10 @@ export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
  *  app           - a staff member, from the in-app chat
  *  bot           - the automatic menu / answers
  *  business_app  - typed in the WhatsApp Business app (only when coexistence is on)
+ *  broadcast     - part of a broadcast to many customers
  *  note          - an internal note staff leave in the thread; never sent to the customer
  */
-export const MESSAGE_SOURCES = ["customer", "app", "bot", "business_app", "note"] as const;
+export const MESSAGE_SOURCES = ["customer", "app", "bot", "business_app", "note", "broadcast"] as const;
 
 /** Messages are personal data: keep a year, then let MongoDB expire them. */
 export const MESSAGE_RETENTION_SECONDS = 365 * 24 * 60 * 60;

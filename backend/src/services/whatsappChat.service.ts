@@ -23,6 +23,7 @@ import {
 } from "../utils/whatsappChat";
 import type { EchoMessage, InboundMessage, StatusEvent } from "../utils/whatsappWebhook";
 import { sendWhatsAppText } from "./whatsapp.service";
+import { applyBroadcastStatus } from "./whatsappBroadcast.service";
 import { isAutoSaveMediaOn, isWhatsappEnabled } from "./whatsappSettings.service";
 
 /**
@@ -32,7 +33,7 @@ import { isAutoSaveMediaOn, isWhatsappEnabled } from "./whatsappSettings.service
  * Meta redelivers.
  */
 
-type MessageSource = "customer" | "app" | "bot" | "business_app";
+type MessageSource = "customer" | "app" | "bot" | "business_app" | "broadcast";
 
 export async function ensureConversation(waId: string, profileName?: string): Promise<WhatsappConversationDoc> {
   const update = {
@@ -171,6 +172,9 @@ export async function recordOutbound(record: OutboundRecord): Promise<void> {
 /** A delivery receipt for a message we sent: moves its ticks forward, never back. */
 export async function recordStatus(event: StatusEvent): Promise<void> {
   if (!isReportedStatus(event.status)) return; // e.g. "deleted", "warning": nothing to show
+
+  // If this message was part of a broadcast, move that person's row forward too.
+  await applyBroadcastStatus(event);
 
   const result = await WhatsappMessage.updateOne(
     { waMessageId: event.id, status: { $in: statusesItMayReplace(event.status) } },

@@ -31,6 +31,8 @@ const conversationSchema = new Schema(
     /** Resolved chats drop out of the working list; a new customer message reopens them. */
     status: { type: String, enum: ["open", "resolved"], default: "open" },
     resolvedAt: { type: Date },
+    /** The customer replied STOP: broadcasts skip them until they reply START. */
+    optedOut: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

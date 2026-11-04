@@ -59,6 +59,12 @@
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
   --radius-lg: 1rem;
+
+  /* Chat screen: a familiar messaging look (soft wallpaper, white / pale-green bubbles, blue "read" ticks) */
+  --chat-wallpaper: #efeae2;
+  --chat-bubble-in: #ffffff;
+  --chat-bubble-out: #d9fdd3;
+  --chat-tick-read: #53bdeb;
 }
 
 @theme inline {
@@ -123,6 +129,44 @@ body {
 @layer components {
   .input {
     @apply rounded-md border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary;
+  }
+
+  /* The conversation background: a warm paper tone with a faint dot pattern. */
+  .chat-wallpaper {
+    background-color: var(--chat-wallpaper);
+    background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+
+  /* Speech-bubble tails, drawn once per run of messages from the same side. */
+  .bubble {
+    position: relative;
+    box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  }
+  .bubble-in {
+    background: var(--chat-bubble-in);
+  }
+  .bubble-out {
+    background: var(--chat-bubble-out);
+  }
+  .bubble-tail-in::before,
+  .bubble-tail-out::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 0;
+    height: 0;
+    border-top: 9px solid;
+  }
+  .bubble-tail-in::before {
+    left: -7px;
+    border-top-color: var(--chat-bubble-in);
+    border-left: 8px solid transparent;
+  }
+  .bubble-tail-out::before {
+    right: -7px;
+    border-top-color: var(--chat-bubble-out);
+    border-right: 8px solid transparent;
   }
 }
 

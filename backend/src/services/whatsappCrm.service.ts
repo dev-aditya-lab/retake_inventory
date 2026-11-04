@@ -1,4 +1,6 @@
 import { Types } from "mongoose";
+import { getCloudinary, isCloudinaryConfigured } from "../config/cloudinary";
+import { logger } from "../config/logger";
 import { User } from "../models/User.model";
 import { WhatsappConversation } from "../models/WhatsappConversation.model";
 import { WhatsappMessage } from "../models/WhatsappMessage.model";
@@ -84,4 +86,52 @@ export async function listAgents() {
 export async function listLabels(): Promise<string[]> {
   const labels = (await WhatsappConversation.distinct("labels")) as string[];
   return labels.filter(Boolean).sort((a, b) => a.localeCompare(b));
+}
+
+export const MAX_DELETE_BATCH = 200;
+
+export interface DeleteResult {
+  chats: number;
+  messages: number;
+  /** Saved Cloudinary copies that were removed. */
+  files: number;
+}
+
+/**
+ * Deletes chats from the app (the chat and every message in it). This does not
+ * touch WhatsApp itself: the customer keeps their copy, and if they write again
+ * a fresh chat starts. With `deleteSavedFiles`, the Cloudinary copies of the
+ * photos and files in those chats are removed too.
+ */
+export async function deleteChats(ids: string[], deleteSavedFiles: boolean): Promise<DeleteResult> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) throw ApiError.badRequest("Choose at least one chat");
+  if (unique.length > MAX_DELETE_BATCH) throw ApiError.badRequest(`Delete at most ${MAX_DELETE_BATCH} chats at a time`);
+
+  let files = 0;
+  if (deleteSavedFiles && isCloudinaryConfigured()) {
+    const saved = await WhatsappMessage.find({ conversation: { $in: unique }, "media.savedPublicId": { $exists: true } })
+      .select("media.savedPublicId media.savedResourceType")
+      .lean();
+    const cloudinary = getCloudinary();
+    for (const m of saved) {
+      const publicId = m.media?.savedPublicId;
+      if (!publicId) continue;
+      try {
+        await cloudinary.uploader.destroy(publicId, {
+          resource_type: (m.media?.savedResourceType as "image" | "video" | "raw" | undefined) ?? "raw",
+          type: "authenticated",
+          invalidate: true,
+        });
+        files += 1;
+      } catch (err) {
+        // A file that can't be removed must not block deleting the chat; it is logged for follow-up.
+        logger.warn({ err, publicId }, "Could not delete a saved WhatsApp file from Cloudinary");
+      }
+    }
+  }
+
+  const messages = await WhatsappMessage.deleteMany({ conversation: { $in: unique } });
+  const chats = await WhatsappConversation.deleteMany({ _id: { $in: unique } });
+  return { chats: chats.deletedCount ?? 0, messages: messages.deletedCount ?? 0, files };
 }

@@ -4,6 +4,7 @@ import { logger } from "../config/logger";
 import { redis } from "../config/redis";
 import { USER_ROLES } from "../models/User.model";
 import { WhatsappConversation } from "../models/WhatsappConversation.model";
+import { isOptIn, isOptOut } from "../utils/whatsappBroadcast";
 import { describeInbound } from "../utils/whatsappChat";
 import { chatPush } from "../utils/pushPayload";
 import { detectIntent, MENU_OPTIONS, type Intent } from "../utils/whatsappIntent";
@@ -31,6 +32,7 @@ import {
 import { isBotPausedFor, recordEcho, recordInbound, recordOutbound, recordReaction, recordStatus } from "./whatsappChat.service";
 import { findCustomerName, findLastHandlingStaff, loadBills } from "./whatsappCustomer.service";
 import { getWhatsappConfig } from "./whatsappConfig.service";
+import { runAutomations } from "./whatsappAutomation.service";
 import { autoSaveInboundMedia } from "./whatsappMedia.service";
 import { recordChange } from "./whatsappHealth.service";
 import { notify } from "./push.service";
@@ -177,6 +179,8 @@ const deps: InboundDeps = {
   isPaused: isBotPausedFor,
   async reply(message, intent) {
     try {
+      // Custom replies first (keywords, welcome, away); the menu bot answers whatever they leave.
+      if (await runAutomations(message, intent)) return;
       await answer(message, intent);
     } catch (err) {
       // A lookup problem on our side shouldn't leave the customer in silence.
@@ -248,7 +252,10 @@ export async function ingestWebhook(body: unknown): Promise<InboundMessage[]> {
     const isNew = await recordInbound(message, { needsHuman });
     if (isNew) {
       fresh.push(message);
-      if (message.media) void autoSaveInboundMedia(message.id); // after the webhook is answered; never throws
+      if (message.media) void autoSaveInboundMedia(message.id);
+      // STOP / START: the customer chooses whether broadcasts reach them.
+      if (isOptOut(message.text)) await WhatsappConversation.updateOne({ waId: message.from }, { $set: { optedOut: true } });
+      else if (isOptIn(message.text)) await WhatsappConversation.updateOne({ waId: message.from }, { $set: { optedOut: false } }); // after the webhook is answered; never throws
       void announceToStaff(message, needsHuman); // after the webhook is answered; not awaited
     }
   }

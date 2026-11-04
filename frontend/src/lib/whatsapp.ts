@@ -79,3 +79,49 @@ export function variableLabel(name: string): string {
 export function lowerWords(value: string): string {
   return value.toLowerCase().replace(/_/g, " ");
 }
+
+/** Business categories WhatsApp offers (the codes are Meta's; keep in step with the backend list). */
+export const BUSINESS_VERTICALS: { value: string; label: string }[] = [
+  { value: "UNDEFINED", label: "Not set" },
+  { value: "RETAIL", label: "Shopping and retail" },
+  { value: "GROCERY", label: "Food and grocery" },
+  { value: "RESTAURANT", label: "Restaurant" },
+  { value: "APPAREL", label: "Clothing and apparel" },
+  { value: "BEAUTY", label: "Beauty, spa and salon" },
+  { value: "AUTO", label: "Automotive" },
+  { value: "EDU", label: "Education" },
+  { value: "ENTERTAIN", label: "Entertainment" },
+  { value: "EVENT_PLAN", label: "Event planning and service" },
+  { value: "FINANCE", label: "Finance and banking" },
+  { value: "GOVT", label: "Public service" },
+  { value: "HOTEL", label: "Hotel and lodging" },
+  { value: "HEALTH", label: "Medical and health" },
+  { value: "NONPROFIT", label: "Non-profit" },
+  { value: "PROF_SERVICES", label: "Professional services" },
+  { value: "TRAVEL", label: "Travel and transportation" },
+  { value: "OTHER", label: "Other" },
+];
+
+export function verticalLabel(code: string): string {
+  return BUSINESS_VERTICALS.find((v) => v.value === code)?.label ?? "Not set";
+}
+
+/** 90_000 -> "1 min 30 s", 4_000 -> "4 s", 0 -> "-" (nothing to measure). */
+export function formatDuration(ms: number): string {
+  if (!ms || ms < 0) return "-";
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds} s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  if (minutes < 60) return `${minutes} min${totalSeconds % 60 ? ` ${totalSeconds % 60} s` : ""}`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} h${minutes % 60 ? ` ${minutes % 60} min` : ""}`;
+}
+
+/** An amount in the account's currency (Meta bills in the business account's currency, e.g. INR). */
+export function formatMoney(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: currency || "INR", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}

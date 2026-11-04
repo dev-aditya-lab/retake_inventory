@@ -26,6 +26,7 @@ import {
 } from "./whatsapp.service";
 import { ensureConversation, recordOutbound } from "./whatsappChat.service";
 import { storeSentCopy, uploadToCloudinary } from "./whatsappMedia.service";
+import { deliverSaved } from "./whatsappQuickReply.service";
 import { getSendableTemplate } from "./whatsappTemplate.service";
 
 /**
@@ -331,4 +332,12 @@ export async function reactToMessage(messageId: string, emoji: string): Promise<
     { _id: messageId },
     emoji ? { $set: { staffReaction: emoji } } : { $unset: { staffReaction: "" } },
   );
+}
+
+/** Sends a saved message from the library into a chat (inside the 24-hour window). */
+export async function sendSavedToChat(userId: string, id: string, savedId: string): Promise<void> {
+  const conversation = await loadConversation(id);
+  requireWindow(conversation, "a saved message");
+  await deliverSaved(conversation.waId, savedId, { source: "app", sentBy: userId });
+  await markHandled(conversation);
 }

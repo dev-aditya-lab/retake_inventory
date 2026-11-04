@@ -5,12 +5,15 @@ import { connectDatabase, disconnectDatabase } from "./config/database";
 import { connectRedis, disconnectRedis } from "./config/redis";
 import { runMigrations } from "./migrations";
 import { gstConfigProblems } from "./services/gstReturn.service";
+import { resumeBroadcasts } from "./services/whatsappBroadcast.service";
 
 async function main() {
   await connectDatabase();
   await connectRedis();
   await runMigrations();
   for (const problem of gstConfigProblems()) logger.error(`GST setup: ${problem}`);
+
+  void resumeBroadcasts().catch((err) => logger.error({ err }, "Could not resume WhatsApp broadcasts"));
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

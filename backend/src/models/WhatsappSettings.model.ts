@@ -14,6 +14,8 @@ const settingsSchema = new Schema(
     enabled: { type: Boolean, default: true },
     /** Copy every photo / file a customer sends to Cloudinary as it arrives (Meta only keeps them ~30 days). */
     autoSaveMedia: { type: Boolean, default: false },
+    /** Opening hours for the "away" automation (see utils/whatsappAutomation). */
+    hours: { type: Schema.Types.Mixed },
 
     // ----- Credentials (all optional: unset falls back to the environment) -----
     phoneNumberId: { type: String, trim: true },

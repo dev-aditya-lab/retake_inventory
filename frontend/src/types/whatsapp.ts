@@ -27,7 +27,7 @@ export interface ChatListPage {
 }
 
 export type MessageStatus = "received" | "sent" | "delivered" | "read" | "failed";
-export type MessageSource = "customer" | "app" | "bot" | "business_app" | "note";
+export type MessageSource = "customer" | "app" | "bot" | "business_app" | "note" | "broadcast";
 
 export interface ChatMessage {
   id: string;
@@ -269,9 +269,241 @@ export interface NewTemplate {
   buttons: NewTemplateButton[];
 }
 
-export interface QuickReply {
+export type SavedKind = "text" | "buttons" | "list" | "cta" | "location" | "contact" | "media";
+
+/** A message in the shared library. Plain text is the old "quick reply". */
+export interface SavedMessage {
   id: string;
   title: string;
+  kind: SavedKind;
+  /** The words, for kind "text". */
   text: string;
+  /** The kind's settings (for a file: kind, filename, caption, size). */
+  data: Record<string, unknown>;
+  /** One line describing it. */
+  summary: string;
   position: number;
+}
+
+/** Older code calls these "quick replies". */
+export type QuickReply = SavedMessage;
+
+export interface SavedInput {
+  title: string;
+  kind?: SavedKind;
+  text?: string;
+  data?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Business profile, API status, usage, analytics
+// ---------------------------------------------------------------------------
+
+export interface BusinessProfile {
+  about: string;
+  address: string;
+  description: string;
+  email: string;
+  websites: string[];
+  /** A category code such as RETAIL. */
+  vertical: string;
+  profilePictureUrl: string;
+  displayName: string;
+  displayNameStatus: string;
+  /** A name change waiting for WhatsApp's review. */
+  pendingDisplayName: string;
+}
+
+export interface UpdateProfileInput {
+  about?: string;
+  address?: string;
+  description?: string;
+  email?: string;
+  websites?: string[];
+  vertical?: string;
+}
+
+export interface ApiStatus {
+  checkedAt: string;
+  service: { enabled: boolean; apiVersion: string; configured: boolean };
+  latencyMs: number | null;
+  phone: {
+    displayPhoneNumber: string;
+    verifiedName: string;
+    status: string;
+    quality: string;
+    nameStatus: string;
+    pendingName: string;
+    pendingNameStatus: string;
+    platform: string;
+    throughput: string;
+    messagingLimit: string;
+    accountMode: string;
+    codeVerification: string;
+    officialBusiness: boolean;
+  } | null;
+  account: {
+    name: string;
+    currency: string;
+    reviewStatus: string;
+    verification: string;
+    canSendMessage: string;
+    entities: { type: string; canSend: string }[];
+  } | null;
+  token: { valid: boolean; type: string; neverExpires: boolean; expiresAt: string | null; scopes: string[]; appName: string; appId: string } | null;
+  webhook: { subscribed: boolean | null; subscribedApps: string[]; lastEventAt: string | null; lastCustomerMessageAt: string | null };
+  problems: string[];
+}
+
+export type UsageRange = "7d" | "30d" | "90d" | "month";
+
+export interface PricingSummary {
+  totalCost: number;
+  totalVolume: number;
+  byCategory: { category: string; volume: number; cost: number; freeVolume: number }[];
+  daily: { date: string; cost: number; volume: number }[];
+}
+
+export interface UsageData {
+  range: UsageRange;
+  counts: {
+    allTime: { total: number; received: number; sent: number; conversations: number };
+    range: { days: number; total: number; received: number; sent: number; newConversations: number; failed: number; delivered: number; read: number };
+    daily: { date: string; received: number; sent: number }[];
+    sentByType: { type: string; count: number }[];
+  };
+  bill: { available: boolean; currency: string; summary: PricingSummary | null; error: string | null };
+}
+
+export interface ResponseStats {
+  count: number;
+  avgMs: number;
+  medianMs: number;
+}
+
+export interface AnalyticsData {
+  range: UsageRange;
+  responseTime: ResponseStats;
+  team: {
+    id: string;
+    name: string;
+    messagesSent: number;
+    replies: number;
+    avgResponseMs: number;
+    medianResponseMs: number;
+    openChats: number;
+    resolvedChats: number;
+  }[];
+  /** Customer messages by hour of the day, index 0 = midnight (India time). */
+  busyHours: number[];
+  chats: { open: number; resolved: number; unassigned: number; needsReply: number };
+  truncated: boolean;
+}
+
+export interface DeleteChatsResult {
+  chats: number;
+  messages: number;
+  files: number;
+}
+
+// ---------------------------------------------------------------------------
+// Broadcasts
+// ---------------------------------------------------------------------------
+
+export interface AudienceInput {
+  allCustomers: boolean;
+  customerTags: string[];
+  labels: string[];
+  numbers: string[];
+}
+
+export interface AudiencePreview {
+  count: number;
+  optedOut: number;
+  tooMany: boolean;
+  limit: number;
+  sample: { waId: string; name: string }[];
+}
+
+export interface BroadcastCounts {
+  total: number;
+  queued: number;
+  sent: number;
+  delivered: number;
+  read: number;
+  failed: number;
+}
+
+export type BroadcastStatus = "draft" | "sending" | "completed" | "cancelled" | "failed";
+
+export interface Broadcast {
+  id: string;
+  name: string;
+  templateName: string;
+  language: string;
+  status: BroadcastStatus;
+  error: string;
+  optedOutSkipped: number;
+  audience: { allCustomers: boolean; customerTags: string[]; labels: string[]; numbers: number };
+  counts: BroadcastCounts;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string | null;
+}
+
+export interface BroadcastDetail extends Broadcast {
+  recipients: {
+    items: { waId: string; name: string; status: string; error: string; sentAt: string | null }[];
+    total: number;
+    page: number;
+    limit: number;
+  };
+}
+
+export interface CreateBroadcastInput {
+  name: string;
+  templateId: string;
+  values: TemplateValues;
+  nameVariable?: number;
+  audience: AudienceInput;
+  start: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Automations
+// ---------------------------------------------------------------------------
+
+export type AutomationType = "keyword" | "welcome" | "away";
+
+export interface Automation {
+  id: string;
+  name: string;
+  type: AutomationType;
+  enabled: boolean;
+  keywords: string[];
+  match: "contains" | "exact";
+  reply: { kind: "text" | "saved"; text: string; savedId: string; savedTitle: string };
+  timesUsed: number;
+  lastUsedAt: string | null;
+}
+
+export interface AutomationInput {
+  name: string;
+  type: AutomationType;
+  enabled: boolean;
+  keywords: string[];
+  match: "contains" | "exact";
+  reply: { kind: "text"; text: string } | { kind: "saved"; savedId: string };
+}
+
+export interface DayHours {
+  closed: boolean;
+  open: string;
+  close: string;
+}
+
+/** Seven days, Sunday first. */
+export interface BusinessHours {
+  enabled: boolean;
+  days: DayHours[];
 }

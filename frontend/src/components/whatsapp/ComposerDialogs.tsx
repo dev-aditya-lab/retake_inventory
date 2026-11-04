@@ -5,10 +5,12 @@ import Link from "next/link";
 import { FileText, Plus, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { getApiErrorMessage } from "@/lib/apiError";
+import type { SavedKind } from "@/types/whatsapp";
 import {
   useListQuickRepliesQuery,
   useSendChatButtonsMutation,
   useSendChatMediaMutation,
+  useSendChatSavedMutation,
   useStartWhatsappChatMutation,
 } from "@/lib/redux/features/whatsapp/whatsappApi";
 
@@ -243,32 +245,63 @@ function ButtonsForm({ chatId, onClose, onSent }: { chatId: string; onClose: () 
 // ---------------------------------------------------------------------------
 
 export function QuickReplyDialog({
+  chatId,
   open,
   onClose,
   onPick,
+  onSent,
   isAdmin,
 }: {
+  chatId: string;
   open: boolean;
   onClose: () => void;
-  /** Gets the saved text so the caller can put it in the message box for editing before sending. */
+  /** Gets a saved text so the caller can put it in the message box for editing before sending. */
   onPick: (text: string) => void;
+  /** A saved message of another kind was sent straight away. */
+  onSent: () => void;
   isAdmin: boolean;
 }) {
   return (
-    <Modal open={open} onClose={onClose} title="Quick replies" size="md">
-      {open && <QuickReplyList onPick={onPick} isAdmin={isAdmin} />}
+    <Modal open={open} onClose={onClose} title="Saved messages" size="md">
+      {open && <SavedList chatId={chatId} onPick={onPick} onSent={() => { onSent(); onClose(); }} isAdmin={isAdmin} />}
     </Modal>
   );
 }
 
-function QuickReplyList({ onPick, isAdmin }: { onPick: (text: string) => void; isAdmin: boolean }) {
+const KIND_LABEL: Record<SavedKind, string> = {
+  text: "Text",
+  buttons: "Buttons",
+  list: "List",
+  cta: "Link button",
+  location: "Location",
+  contact: "Contact",
+  media: "File",
+};
+
+function SavedList({ chatId, onPick, onSent, isAdmin }: { chatId: string; onPick: (text: string) => void; onSent: () => void; isAdmin: boolean }) {
   const { data, isLoading, isError, refetch } = useListQuickRepliesQuery();
+  const [send] = useSendChatSavedMutation();
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSend(savedId: string) {
+    setError(null);
+    setSendingId(savedId);
+    try {
+      await send({ id: chatId, savedId }).unwrap();
+      onSent();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Couldn't send it. Check your connection and try again."));
+    } finally {
+      setSendingId(null);
+    }
+  }
 
   if (isLoading) return <p className="text-sm text-muted">Loading…</p>;
   if (isError || !data) {
     return (
       <div className="text-sm">
-        <p className="text-danger">Couldn&apos;t load the quick replies.</p>
+        <p className="text-danger">Couldn&apos;t load the saved messages.</p>
         <button type="button" onClick={() => refetch()} className="mt-2 font-medium text-primary">
           Try again
         </button>
@@ -278,7 +311,7 @@ function QuickReplyList({ onPick, isAdmin }: { onPick: (text: string) => void; i
   if (data.length === 0) {
     return (
       <p className="text-sm text-muted">
-        No quick replies saved yet.
+        Nothing saved yet.
         {isAdmin && (
           <>
             {" "}
@@ -294,20 +327,46 @@ function QuickReplyList({ onPick, isAdmin }: { onPick: (text: string) => void; i
   }
 
   return (
-    <ul className="flex flex-col gap-2">
-      {data.map((reply) => (
-        <li key={reply.id}>
-          <button
-            type="button"
-            onClick={() => onPick(reply.text)}
-            className="flex w-full min-w-0 flex-col gap-0.5 rounded-lg border border-border bg-background p-3 text-left hover:bg-ink-50"
-          >
-            <span className="text-sm font-medium text-foreground [overflow-wrap:anywhere]">{reply.title}</span>
-            <span className="line-clamp-2 text-sm text-muted [overflow-wrap:anywhere]">{reply.text}</span>
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-2">
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <ul className="flex flex-col gap-2">
+        {data.map((item) => (
+          <li key={item.id} className="flex items-stretch gap-2 rounded-lg border border-border bg-background">
+            <div className="min-w-0 flex-1 p-3">
+              <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground [overflow-wrap:anywhere]">
+                {item.title}
+                {item.kind !== "text" && (
+                  <span className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-medium text-ink-700">{KIND_LABEL[item.kind]}</span>
+                )}
+              </p>
+              <p className="line-clamp-2 text-sm text-muted [overflow-wrap:anywhere]">{item.summary}</p>
+            </div>
+            {item.kind === "text" ? (
+              <button
+                type="button"
+                onClick={() => onPick(item.text)}
+                className="shrink-0 rounded-r-lg border-l border-border px-3 text-xs font-medium text-primary hover:bg-ink-50"
+              >
+                Use
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleSend(item.id)}
+                disabled={sendingId !== null}
+                className="shrink-0 rounded-r-lg border-l border-border px-3 text-xs font-medium text-primary hover:bg-ink-50 disabled:opacity-60"
+              >
+                {sendingId === item.id ? "Sending…" : "Send"}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
