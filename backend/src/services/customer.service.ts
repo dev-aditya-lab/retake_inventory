@@ -7,6 +7,7 @@ import { phoneKey } from "../utils/phone";
 import { isDuplicateKeyError } from "../utils/mongoErrors";
 import { logger } from "../config/logger";
 import { BALANCE_DUE_EXPR } from "../utils/payments";
+import { normalizeTags } from "../utils/customerTags";
 
 export interface CustomerDetails {
   name?: string;
@@ -18,6 +19,12 @@ export interface CustomerDetails {
 }
 
 const DETAIL_FIELDS = ["name", "company", "address", "phone", "email", "gstin"] as const;
+
+/** What staff can add by hand (the sale flow only ever fills in the details above). */
+export interface CustomerExtras {
+  notes?: string;
+  tags?: string[];
+}
 
 export interface CustomerListFilters {
   search?: string;
@@ -35,6 +42,7 @@ export async function listCustomers({ search, page, limit }: CustomerListFilters
       { company: { $regex: pattern, $options: "i" } },
       { email: { $regex: pattern, $options: "i" } },
       { phone: { $regex: pattern, $options: "i" } },
+      { tags: { $regex: `^${pattern}`, $options: "i" } },
       ...(digits.length >= 3 ? [{ phoneKey: { $regex: escapeRegex(digits) } }] : []),
     ];
   }
@@ -94,7 +102,42 @@ export async function findCustomerByPhone(phone: string) {
   return Customer.findOne({ phoneKey: key });
 }
 
-export async function updateCustomer(id: string, input: CustomerDetails & { applyToInvoices?: boolean }) {
+export type CustomerSource = "manual" | "whatsapp";
+
+/**
+ * Saves a contact by hand (from the Customers page or a WhatsApp chat). A number
+ * that is already in the directory is a conflict, not an overwrite: the existing
+ * entry may carry bills and details nobody meant to replace.
+ */
+export async function createCustomer(input: CustomerDetails & CustomerExtras, source: CustomerSource) {
+  const key = phoneKey(input.phone);
+  if (!key) throw ApiError.badRequest("Enter a valid phone number — customers are matched by phone");
+  const name = input.name?.trim();
+  if (!name) throw ApiError.badRequest("Name is required");
+
+  const existing = await Customer.findOne({ phoneKey: key }).select("name").lean();
+  if (existing) throw ApiError.conflict(`${existing.name} is already saved with this phone number`);
+
+  try {
+    return await Customer.create({
+      ...nonEmptyDetails({ ...input, name }),
+      phone: input.phone!.trim(),
+      phoneKey: key,
+      notes: input.notes?.trim() ?? "",
+      tags: normalizeTags(input.tags ?? []),
+      source,
+    });
+  } catch (err) {
+    // Saved by someone else a moment ago.
+    if (isDuplicateKeyError(err)) throw ApiError.conflict("This phone number is already saved");
+    throw err;
+  }
+}
+
+export async function updateCustomer(
+  id: string,
+  input: CustomerDetails & CustomerExtras & { applyToInvoices?: boolean },
+) {
   const customer = await Customer.findById(id);
   if (!customer) throw ApiError.notFound("Customer not found");
 
@@ -111,6 +154,8 @@ export async function updateCustomer(id: string, input: CustomerDetails & { appl
   for (const field of DETAIL_FIELDS) {
     if (input[field] !== undefined) customer[field] = input[field]!;
   }
+  if (input.notes !== undefined) customer.notes = input.notes;
+  if (input.tags !== undefined) customer.tags = normalizeTags(input.tags);
 
   try {
     await customer.save();

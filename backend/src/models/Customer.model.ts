@@ -16,6 +16,12 @@ const customerSchema = new Schema(
     phoneKey: { type: String, required: true },
     email: { type: String, default: "", trim: true },
     gstin: { type: String, default: "", trim: true, uppercase: true },
+    /** Free-form note staff keep about the customer ("pays on Fridays", "wants delivery"). */
+    notes: { type: String, default: "", trim: true, maxlength: 500 },
+    /** Short labels such as "Wholesale" or "VIP" (see utils/customerTags). */
+    tags: { type: [String], default: [] },
+    /** How the entry got here: a bill, typed in by staff, or saved from a WhatsApp chat. */
+    source: { type: String, enum: ["sale", "manual", "whatsapp"], default: "sale" },
     lastPurchaseAt: { type: Date },
   },
   { timestamps: true },

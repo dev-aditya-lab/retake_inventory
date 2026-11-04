@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { TagInput } from "@/components/customers/TagInput";
 import { useUpdateCustomerMutation } from "@/lib/redux/features/customers/customersApi";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { Customer } from "@/types/customer";
@@ -23,7 +24,9 @@ function EditCustomerForm({ customer, onClose }: { customer: Customer; onClose: 
     email: customer.email,
     gstin: customer.gstin,
     address: customer.address,
+    notes: customer.notes ?? "",
   });
+  const [tags, setTags] = useState<string[]>(customer.tags ?? []);
   const [applyToInvoices, setApplyToInvoices] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +45,8 @@ function EditCustomerForm({ customer, onClose }: { customer: Customer; onClose: 
         email: form.email.trim(),
         gstin: form.gstin.trim().toUpperCase(),
         address: form.address.trim(),
+        notes: form.notes.trim(),
+        tags,
         applyToInvoices,
       }).unwrap();
       onClose();
@@ -80,6 +85,19 @@ function EditCustomerForm({ customer, onClose }: { customer: Customer; onClose: 
           <input value={form.address} onChange={set("address")} className="input" />
         </Field>
       </div>
+
+      <Field label="Labels">
+        <TagInput tags={tags} onChange={setTags} />
+      </Field>
+      <Field label="Note">
+        <textarea
+          rows={2}
+          maxLength={500}
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          className="input resize-none"
+        />
+      </Field>
 
       {customer.invoiceCount > 0 && (
         <label className="flex items-start gap-2 rounded-md bg-surface p-3 text-sm text-foreground">

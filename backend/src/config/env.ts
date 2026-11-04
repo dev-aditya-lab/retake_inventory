@@ -36,6 +36,10 @@ const envSchema = z.object({
   /** A contact for push services, "mailto:you@example.com" or an https URL. */
   VAPID_SUBJECT: z.string().optional(),
   WHATSAPP_WEBHOOK_URL: z.string().url().optional(),
+  // Key that encrypts WhatsApp credentials saved from the app. Set it to a long
+  // random string and never change it (saved tokens would stop decrypting). When
+  // unset, JWT_REFRESH_SECRET is used.
+  WHATSAPP_SETTINGS_KEY: z.string().min(16, "WHATSAPP_SETTINGS_KEY must be at least 16 characters").optional(),
 
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().email().optional(),

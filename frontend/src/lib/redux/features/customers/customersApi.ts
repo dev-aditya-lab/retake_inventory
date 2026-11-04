@@ -35,6 +35,13 @@ export const customersApi = apiSlice.injectEndpoints({
       query: (phone) => `/api/customers/lookup?phone=${encodeURIComponent(phone)}`,
       transformResponse: unwrap<Customer | null>,
     }),
+    /** Saves a contact by hand (Customers page) or from a WhatsApp chat. */
+    createCustomer: builder.mutation<Customer, CustomerDetails & { source?: "manual" | "whatsapp" }>({
+      query: (body) => ({ url: "/api/customers", method: "POST", body }),
+      transformResponse: unwrap<Customer>,
+      // The chat list and open chats show the saved name, so refresh WhatsApp data too.
+      invalidatesTags: ["Customer", "Whatsapp"],
+    }),
     updateCustomer: builder.mutation<{ customer: Customer; invoicesUpdated: number }, UpdateCustomerInput>({
       query: ({ id, ...body }) => ({ url: `/api/customers/${id}`, method: "PATCH", body }),
       transformResponse: unwrap<{ customer: Customer; invoicesUpdated: number }>,
@@ -50,6 +57,7 @@ export const customersApi = apiSlice.injectEndpoints({
 export const {
   useListCustomersQuery,
   useLazyLookupCustomerQuery,
+  useCreateCustomerMutation,
   useUpdateCustomerMutation,
   useDeleteCustomerMutation,
 } = customersApi;

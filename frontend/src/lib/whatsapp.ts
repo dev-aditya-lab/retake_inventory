@@ -50,3 +50,32 @@ export function dayKey(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
+
+const VARIABLE = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+
+/** The {{variables}} used in `text`, each once, in order of first use. */
+export function variablesIn(text: string): string[] {
+  const seen: string[] = [];
+  for (const match of text.matchAll(VARIABLE)) {
+    if (!seen.includes(match[1]!)) seen.push(match[1]!);
+  }
+  return seen;
+}
+
+/** Replaces each {{variable}} with its value (by position in `names`); unfilled ones stay as a visible placeholder. */
+export function fillVariables(text: string, names: string[], values: string[] = []): string {
+  const byName = new Map(names.map((name, i) => [name, (values[i] ?? "").trim()]));
+  return text.replace(VARIABLE, (whole, name: string) => byName.get(name) || whole);
+}
+
+/** "customer_name" -> "Customer name"; numbered variables become "Value 1". */
+export function variableLabel(name: string): string {
+  if (/^\d+$/.test(name)) return `Value ${name}`;
+  const spaced = name.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/** "PENDING_DELETION" -> "pending deletion". */
+export function lowerWords(value: string): string {
+  return value.toLowerCase().replace(/_/g, " ");
+}

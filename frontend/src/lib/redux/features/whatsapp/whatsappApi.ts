@@ -3,6 +3,13 @@ import type {
   ChatFilter,
   ChatListPage,
   ChatThread,
+  ConnectionResult,
+  NewTemplate,
+  QuickReply,
+  SaveWhatsappConfig,
+  TemplateDetail,
+  TemplateValues,
+  WhatsappConfig,
   WhatsappHealth,
   WhatsappSummary,
 } from "@/types/whatsapp";
@@ -64,6 +71,106 @@ export const whatsappApi = apiSlice.injectEndpoints({
       transformResponse: done,
       invalidatesTags: ["Whatsapp"],
     }),
+
+    // ----- Connection settings (admin) -----
+    getWhatsappConfig: builder.query<WhatsappConfig, void>({
+      query: () => "/api/whatsapp/config",
+      transformResponse: unwrap<WhatsappConfig>,
+      providesTags: ["WhatsappConfig"],
+    }),
+    saveWhatsappConfig: builder.mutation<WhatsappConfig, SaveWhatsappConfig>({
+      query: (body) => ({ url: "/api/whatsapp/config", method: "PUT", body }),
+      transformResponse: unwrap<WhatsappConfig>,
+      invalidatesTags: ["WhatsappConfig", "Whatsapp"],
+    }),
+    testWhatsappConnection: builder.mutation<ConnectionResult, void>({
+      query: () => ({ url: "/api/whatsapp/config/test", method: "POST" }),
+      transformResponse: unwrap<ConnectionResult>,
+      invalidatesTags: ["WhatsappConfig"],
+    }),
+    subscribeWhatsappWebhooks: builder.mutation<void, void>({
+      query: () => ({ url: "/api/whatsapp/config/subscribe", method: "POST" }),
+      transformResponse: done,
+    }),
+
+    // ----- Templates -----
+    listWhatsappTemplates: builder.query<TemplateDetail[], { sendableOnly?: boolean } | void>({
+      query: (args) => `/api/whatsapp/templates${args && args.sendableOnly ? "?sendable=1" : ""}`,
+      transformResponse: unwrap<TemplateDetail[]>,
+      providesTags: ["WhatsappTemplate"],
+    }),
+    syncWhatsappTemplates: builder.mutation<{ total: number; removed: number }, void>({
+      query: () => ({ url: "/api/whatsapp/templates/sync", method: "POST" }),
+      transformResponse: unwrap<{ total: number; removed: number }>,
+      invalidatesTags: ["WhatsappTemplate", "Whatsapp"],
+    }),
+    createWhatsappTemplate: builder.mutation<TemplateDetail, NewTemplate>({
+      query: (body) => ({ url: "/api/whatsapp/templates", method: "POST", body }),
+      transformResponse: unwrap<TemplateDetail>,
+      invalidatesTags: ["WhatsappTemplate", "Whatsapp"],
+    }),
+    deleteWhatsappTemplate: builder.mutation<void, string>({
+      query: (name) => ({ url: `/api/whatsapp/templates/${encodeURIComponent(name)}`, method: "DELETE" }),
+      transformResponse: done,
+      invalidatesTags: ["WhatsappTemplate", "Whatsapp"],
+    }),
+
+    // ----- Sending from a chat -----
+    sendChatTemplate: builder.mutation<void, { id: string; templateId: string; values: TemplateValues }>({
+      query: ({ id, templateId, values }) => ({
+        url: `/api/whatsapp/chats/${id}/template`,
+        method: "POST",
+        body: { templateId, values },
+      }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    sendChatMedia: builder.mutation<void, { id: string; file: File; caption: string }>({
+      query: ({ id, file, caption }) => {
+        const body = new FormData();
+        body.append("caption", caption);
+        body.append("file", file);
+        return { url: `/api/whatsapp/chats/${id}/media`, method: "POST", body };
+      },
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    sendChatButtons: builder.mutation<void, { id: string; body: string; buttons: string[] }>({
+      query: ({ id, body, buttons }) => ({
+        url: `/api/whatsapp/chats/${id}/buttons`,
+        method: "POST",
+        body: { body, buttons },
+      }),
+      transformResponse: done,
+      invalidatesTags: ["Whatsapp"],
+    }),
+    startWhatsappChat: builder.mutation<{ id: string }, { phone: string; name?: string }>({
+      query: (body) => ({ url: "/api/whatsapp/chats/start", method: "POST", body }),
+      transformResponse: unwrap<{ id: string }>,
+      invalidatesTags: ["Whatsapp"],
+    }),
+
+    // ----- Quick replies -----
+    listQuickReplies: builder.query<QuickReply[], void>({
+      query: () => "/api/whatsapp/quick-replies",
+      transformResponse: unwrap<QuickReply[]>,
+      providesTags: ["WhatsappQuickReply"],
+    }),
+    createQuickReply: builder.mutation<QuickReply, { title: string; text: string }>({
+      query: (body) => ({ url: "/api/whatsapp/quick-replies", method: "POST", body }),
+      transformResponse: unwrap<QuickReply>,
+      invalidatesTags: ["WhatsappQuickReply"],
+    }),
+    updateQuickReply: builder.mutation<QuickReply, { id: string; title: string; text: string }>({
+      query: ({ id, ...body }) => ({ url: `/api/whatsapp/quick-replies/${id}`, method: "PUT", body }),
+      transformResponse: unwrap<QuickReply>,
+      invalidatesTags: ["WhatsappQuickReply"],
+    }),
+    deleteQuickReply: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/whatsapp/quick-replies/${id}`, method: "DELETE" }),
+      transformResponse: done,
+      invalidatesTags: ["WhatsappQuickReply"],
+    }),
   }),
 });
 
@@ -76,4 +183,20 @@ export const {
   useGetWhatsappHealthQuery,
   useSetWhatsappServiceMutation,
   useAcknowledgeAlertMutation,
+  useGetWhatsappConfigQuery,
+  useSaveWhatsappConfigMutation,
+  useTestWhatsappConnectionMutation,
+  useSubscribeWhatsappWebhooksMutation,
+  useListWhatsappTemplatesQuery,
+  useSyncWhatsappTemplatesMutation,
+  useCreateWhatsappTemplateMutation,
+  useDeleteWhatsappTemplateMutation,
+  useSendChatTemplateMutation,
+  useSendChatMediaMutation,
+  useSendChatButtonsMutation,
+  useStartWhatsappChatMutation,
+  useListQuickRepliesQuery,
+  useCreateQuickReplyMutation,
+  useUpdateQuickReplyMutation,
+  useDeleteQuickReplyMutation,
 } = whatsappApi;

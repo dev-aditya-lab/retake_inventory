@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
+import type { z } from "zod";
 import * as customerService from "../services/customer.service";
-import { customerLookupQuerySchema, listCustomersQuerySchema } from "../validators/customer.validators";
+import { createCustomerSchema, customerLookupQuerySchema, listCustomersQuerySchema } from "../validators/customer.validators";
 
 // Express 5's req.query is getter-only, so query params are parsed inline
 // (see report.controller) rather than through a validateQuery middleware.
@@ -15,6 +16,12 @@ export async function lookupCustomer(req: Request, res: Response): Promise<void>
   const { phone } = customerLookupQuerySchema.parse(req.query);
   const customer = await customerService.findCustomerByPhone(phone);
   res.json({ success: true, data: customer });
+}
+
+export async function createCustomer(req: Request, res: Response): Promise<void> {
+  const { source, ...details } = req.body as z.infer<typeof createCustomerSchema>;
+  const customer = await customerService.createCustomer(details, source);
+  res.status(201).json({ success: true, data: customer });
 }
 
 export async function updateCustomer(req: Request, res: Response): Promise<void> {

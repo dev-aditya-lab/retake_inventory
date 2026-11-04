@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MessageCircle, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MessageCircle, Plus, Search } from "lucide-react";
+import { NewChatDialog } from "@/components/whatsapp/ComposerDialogs";
 import { useListChatsQuery } from "@/lib/redux/features/whatsapp/whatsappApi";
 import { chatTitle, formatChatTime, initialOf } from "@/lib/whatsapp";
 import type { ChatFilter, ChatListItem } from "@/types/whatsapp";
@@ -23,6 +25,8 @@ export function ChatList({ activeId }: { activeId?: string }) {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [limit, setLimit] = useState(PAGE);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(search.trim()), 300);
@@ -40,20 +44,30 @@ export function ChatList({ activeId }: { activeId?: string }) {
   return (
     <section aria-label="Chats" className="flex min-w-0 flex-col rounded-lg border border-border bg-background md:h-[calc(100dvh-12rem)]">
       <div className="flex flex-col gap-2 border-b border-border p-2">
-        <label className="relative block">
-          <span className="sr-only">Search chats</span>
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setLimit(PAGE);
-            }}
-            placeholder="Search name or number"
-            className="input w-full pl-9 text-base"
-          />
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="relative block min-w-0 flex-1">
+            <span className="sr-only">Search chats</span>
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setLimit(PAGE);
+              }}
+              placeholder="Search name or number"
+              className="input w-full pl-9 text-base"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setNewChatOpen(true)}
+            aria-label="Start a new chat"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
+          >
+            <Plus size={20} aria-hidden />
+          </button>
+        </div>
 
         <div className="flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Filter chats">
           {FILTERS.map((f) => (
@@ -120,6 +134,15 @@ export function ChatList({ activeId }: { activeId?: string }) {
           </p>
         )}
       </div>
+
+      <NewChatDialog
+        open={newChatOpen}
+        onClose={() => setNewChatOpen(false)}
+        onStarted={(chatId) => {
+          setNewChatOpen(false);
+          router.push(`/whatsapp/${chatId}`);
+        }}
+      />
     </section>
   );
 }

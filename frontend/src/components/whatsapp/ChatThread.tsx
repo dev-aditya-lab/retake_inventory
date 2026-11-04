@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, CheckCheck, CircleAlert, Lock, Send } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, CircleAlert, LayoutTemplate, Lock, MousePointerClick, Paperclip, Send, UserPlus, Zap } from "lucide-react";
 import {
   useGetChatQuery,
   useGetWhatsappSummaryQuery,
   useMarkChatReadMutation,
   useSendChatMessageMutation,
 } from "@/lib/redux/features/whatsapp/whatsappApi";
+import { AddCustomerDialog } from "@/components/customers/AddCustomerDialog";
+import { AttachDialog, ATTACH_ACCEPT, ButtonsDialog, QuickReplyDialog } from "@/components/whatsapp/ComposerDialogs";
+import { SendTemplateDialog } from "@/components/whatsapp/SendTemplateDialog";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 import { chatTitle, dayKey, formatClock, formatDayLabel, formatWaId, initialOf } from "@/lib/whatsapp";
 import type { ChatMessage } from "@/types/whatsapp";
 
@@ -22,6 +26,17 @@ export function ChatThreadView({ id }: { id: string }) {
   const [limit, setLimit] = useState(PAGE);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [buttonsOpen, setButtonsOpen] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [saveContactOpen, setSaveContactOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: user } = useGetMeQuery();
+  const isAdmin = user?.role === "admin";
+  // The same staff who may add customers elsewhere (the server enforces this too).
+  const canSaveContact = user?.role === "admin" || user?.role === "sales";
 
   const { data, isLoading, isError, error, refetch } = useGetChatQuery(
     { id, limit },
@@ -88,6 +103,25 @@ export function ChatThreadView({ id }: { id: string }) {
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }
 
+  /** Anything sent from a dialog: show the new message and clear any old error. */
+  function handleSentElsewhere() {
+    stickToBottom.current = true;
+    setSendError(null);
+  }
+
+  /** A quick reply goes into the message box so it can be edited before sending. */
+  function handleQuickPick(text: string) {
+    setDraft((current) => (current.trim() ? `${current.trimEnd()}\n${text}` : text).slice(0, MAX_LENGTH));
+    setQuickOpen(false);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        growTextarea(el);
+      }
+    });
+  }
+
   const conversation = data?.conversation;
   const title = conversation ? chatTitle(conversation) : "Chat";
 
@@ -152,6 +186,17 @@ export function ChatThreadView({ id }: { id: string }) {
             Needs reply
           </span>
         )}
+        {!conversation.isCustomer && canSaveContact && (
+          <button
+            type="button"
+            onClick={() => setSaveContactOpen(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-2 text-xs font-medium text-foreground hover:bg-ink-100"
+          >
+            <UserPlus size={14} aria-hidden />
+            <span className="hidden sm:inline">Save contact</span>
+            <span className="sm:hidden">Save</span>
+          </button>
+        )}
       </header>
 
       <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto bg-surface px-3 py-3">
@@ -191,6 +236,12 @@ export function ChatThreadView({ id }: { id: string }) {
         </div>
       ) : conversation.windowOpen ? (
         <form onSubmit={handleSend} className="border-t border-border bg-background p-2">
+          <div className="mb-2 flex gap-1.5 overflow-x-auto" role="toolbar" aria-label="More ways to reply">
+            <ToolButton icon={Zap} label="Quick reply" onClick={() => setQuickOpen(true)} />
+            <ToolButton icon={Paperclip} label="Photo / file" onClick={() => fileInputRef.current?.click()} />
+            <ToolButton icon={MousePointerClick} label="Buttons" onClick={() => setButtonsOpen(true)} />
+            <ToolButton icon={LayoutTemplate} label="Template" onClick={() => setTemplateOpen(true)} />
+          </div>
           {sendError && (
             <p role="alert" className="mb-2 px-1 text-sm text-danger">
               {sendError}
@@ -227,14 +278,51 @@ export function ChatThreadView({ id }: { id: string }) {
           </p>
         </form>
       ) : (
-        <div className="flex items-start gap-2 border-t border-border bg-background p-3 text-sm text-muted">
-          <Lock size={16} className="mt-0.5 shrink-0" aria-hidden />
-          <p>
-            The 24-hour reply window has closed. WhatsApp only lets the shop reply within 24 hours of the
-            customer&apos;s last message, so you can reply again once they write to us.
-          </p>
+        <div className="flex flex-col gap-2 border-t border-border bg-background p-3 text-sm text-muted">
+          <div className="flex items-start gap-2">
+            <Lock size={16} className="mt-0.5 shrink-0" aria-hidden />
+            <p>
+              The 24-hour reply window has closed. WhatsApp only lets the shop send free messages within 24 hours of the
+              customer&apos;s last message. You can still send an approved template.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTemplateOpen(true)}
+            className="flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
+          >
+            <LayoutTemplate size={16} aria-hidden /> Send a template
+          </button>
         </div>
       )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ATTACH_ACCEPT}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) setAttachment(file);
+          e.target.value = ""; // picking the same file again should still fire
+        }}
+      />
+      <SendTemplateDialog
+        chatId={id}
+        customerName={conversation.name}
+        open={templateOpen}
+        onClose={() => setTemplateOpen(false)}
+        onSent={handleSentElsewhere}
+      />
+      <QuickReplyDialog open={quickOpen} onClose={() => setQuickOpen(false)} onPick={handleQuickPick} isAdmin={isAdmin} />
+      <ButtonsDialog chatId={id} open={buttonsOpen} onClose={() => setButtonsOpen(false)} onSent={handleSentElsewhere} />
+      <AddCustomerDialog
+        open={saveContactOpen}
+        onClose={() => setSaveContactOpen(false)}
+        prefill={{ name: conversation.name, phone: `+${conversation.waId}` }}
+        source="whatsapp"
+      />
+      <AttachDialog chatId={id} file={attachment} onClose={() => setAttachment(null)} onSent={handleSentElsewhere} />
     </section>
   );
 }
@@ -303,4 +391,17 @@ function Ticks({ status }: { status: ChatMessage["status"] }) {
     default:
       return <Check size={14} aria-label="Sent" />;
   }
+}
+
+function ToolButton({ icon: Icon, label, onClick }: { icon: typeof Send; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-ink-100"
+    >
+      <Icon size={14} aria-hidden />
+      {label}
+    </button>
+  );
 }

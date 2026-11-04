@@ -90,3 +90,117 @@ export interface WhatsappHealth {
   templates: WhatsappTemplate[];
   alerts: WhatsappAlert[];
 }
+
+// ---------------------------------------------------------------------------
+// Connection settings (admin)
+// ---------------------------------------------------------------------------
+
+export type ConfigSource = "app" | "env" | "none";
+
+export interface ConfigField {
+  value: string;
+  source: ConfigSource;
+}
+
+export interface ConfigSecret {
+  set: boolean;
+  /** Masked, e.g. "EAAG••••9Zk1". The real secret never reaches the browser. */
+  hint: string;
+  source: ConfigSource;
+}
+
+export interface WhatsappConfig {
+  phoneNumberId: ConfigField;
+  businessAccountId: ConfigField;
+  appId: ConfigField;
+  apiVersion: ConfigField;
+  accessToken: ConfigSecret;
+  verifyToken: ConfigSecret;
+  appSecret: ConfigSecret;
+  displayPhoneNumber: string;
+  verifiedName: string;
+  lastCheckedAt: string | null;
+  dedicatedEncryptionKey: boolean;
+}
+
+export type SecretName = "accessToken" | "verifyToken" | "appSecret";
+
+/** Omitted = leave as is. An empty id clears it (falls back to the server). Secrets: empty leaves it, use `clear` to remove. */
+export interface SaveWhatsappConfig {
+  phoneNumberId?: string;
+  businessAccountId?: string;
+  appId?: string;
+  apiVersion?: string;
+  accessToken?: string;
+  verifyToken?: string;
+  appSecret?: string;
+  clear?: SecretName[];
+}
+
+export interface ConnectionCheck {
+  key: "credentials" | "phone" | "account" | "webhook";
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface ConnectionResult {
+  ok: boolean;
+  checks: ConnectionCheck[];
+  phone: { displayPhoneNumber: string; verifiedName: string; quality: string } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Templates and quick replies
+// ---------------------------------------------------------------------------
+
+export interface TemplateButton {
+  type: string;
+  text: string;
+  url?: string;
+  phone?: string;
+}
+
+export interface TemplateDetail extends WhatsappTemplate {
+  parameterFormat: "POSITIONAL" | "NAMED";
+  headerFormat: string;
+  headerText: string;
+  bodyText: string;
+  footerText: string;
+  headerVariables: string[];
+  bodyVariables: string[];
+  buttons: TemplateButton[];
+  /** True once the full text is known (after a sync), so it can be previewed and sent. */
+  hasContent: boolean;
+}
+
+export interface TemplateValues {
+  header?: string[];
+  body?: string[];
+  headerMediaUrl?: string;
+  buttonUrlValues?: string[];
+}
+
+export type NewTemplateButton =
+  | { type: "QUICK_REPLY"; text: string }
+  | { type: "URL"; text: string; url: string; example?: string }
+  | { type: "PHONE_NUMBER"; text: string; phone: string };
+
+export interface NewTemplate {
+  name: string;
+  language: string;
+  category: "UTILITY" | "MARKETING";
+  header?: string;
+  headerExample?: string;
+  body: string;
+  bodyExamples: string[];
+  footer?: string;
+  buttons: NewTemplateButton[];
+}
+
+export interface QuickReply {
+  id: string;
+  title: string;
+  text: string;
+  position: number;
+}

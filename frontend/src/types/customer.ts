@@ -6,6 +6,10 @@ export interface Customer {
   phone: string;
   email: string;
   gstin: string;
+  notes?: string;
+  tags?: string[];
+  /** Where the entry came from: a bill, typed in by staff, or saved from a WhatsApp chat. */
+  source?: "sale" | "manual" | "whatsapp";
   lastPurchaseAt: string | null;
   /** Paid (not cancelled) bills only. */
   invoiceCount: number;
@@ -21,4 +25,6 @@ export interface CustomerDetails {
   phone?: string;
   email?: string;
   gstin?: string;
+  notes?: string;
+  tags?: string[];
 }

@@ -7,9 +7,12 @@ import { NotificationPrompt } from "@/components/whatsapp/NotificationSettings";
 import { useGetMeQuery } from "@/lib/redux/features/auth/authApi";
 import { useGetWhatsappSummaryQuery } from "@/lib/redux/features/whatsapp/whatsappApi";
 
+/** Pages under /whatsapp that are not a chat (a chat's path is /whatsapp/<chat id>). */
+const SECTIONS = ["health", "settings", "templates"];
+
 /**
- * The WhatsApp section: customer chats for every staff role, plus an
- * admin-only account-health tab.
+ * The WhatsApp section: customer chats and message templates for every staff
+ * role, plus admin-only connection settings and account health.
  *
  * Phones show one pane at a time (the chat list, or one conversation, with a
  * back arrow). From md up the list stays on the left and the conversation opens
@@ -20,15 +23,22 @@ export default function WhatsappLayout({ children }: { children: React.ReactNode
   const { data: user } = useGetMeQuery();
   const { data: summary } = useGetWhatsappSummaryQuery(undefined, { skipPollingIfUnfocused: true, pollingInterval: 30_000 });
 
-  const onHealth = pathname.startsWith("/whatsapp/health");
-  const segments = pathname.split("/").filter(Boolean); // ["whatsapp", id?]
-  const activeChatId = !onHealth && segments.length > 1 ? segments[1] : undefined;
+  const segments = pathname.split("/").filter(Boolean); // ["whatsapp", id | section?]
+  // Everything under /whatsapp that is not a chat id is a full-width page of its own.
+  const onSection = segments.length > 1 && SECTIONS.includes(segments[1]!);
+  const activeChatId = !onSection && segments.length > 1 ? segments[1] : undefined;
   const inThread = !!activeChatId;
 
   const isAdmin = user?.role === "admin";
   const tabs = [
-    { href: "/whatsapp", label: "Chats", active: !onHealth, count: summary?.unreadChats ?? 0 },
-    ...(isAdmin ? [{ href: "/whatsapp/health", label: "Account health", active: onHealth, count: summary?.openAlerts ?? 0 }] : []),
+    { href: "/whatsapp", label: "Chats", active: !onSection, count: summary?.unreadChats ?? 0 },
+    { href: "/whatsapp/templates", label: "Templates", active: segments[1] === "templates", count: 0 },
+    ...(isAdmin
+      ? [
+          { href: "/whatsapp/settings", label: "Settings", active: segments[1] === "settings", count: 0 },
+          { href: "/whatsapp/health", label: "Account health", active: segments[1] === "health", count: summary?.openAlerts ?? 0 },
+        ]
+      : []),
   ];
 
   return (
@@ -70,7 +80,7 @@ export default function WhatsappLayout({ children }: { children: React.ReactNode
         <NotificationPrompt />
       </div>
 
-      {onHealth ? (
+      {onSection ? (
         <div className="mt-4">{children}</div>
       ) : (
         <div className="mt-3 md:grid md:grid-cols-[20rem_minmax(0,1fr)] md:gap-4">

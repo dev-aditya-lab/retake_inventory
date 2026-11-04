@@ -1,7 +1,7 @@
-import axios from "axios";
-import { env } from "../config/env";
 import { ApiError } from "../utils/ApiError";
 import { normalizeIndianPhone } from "../utils/phone";
+import { graph } from "./metaGraph.service";
+import { getWhatsappConfig } from "./whatsappConfig.service";
 import { isWhatsappEnabled } from "./whatsappSettings.service";
 
 interface SendInvoiceWhatsAppParams {
@@ -20,23 +20,110 @@ async function postMessage(payload: Record<string, unknown>): Promise<string | u
   if (!(await isWhatsappEnabled())) {
     throw ApiError.badRequest("The WhatsApp service is turned off");
   }
-  if (!env.WHATSAPP_PHONE_NUMBER_ID || !env.WHATSAPP_ACCESS_TOKEN) {
-    throw ApiError.badRequest("WhatsApp is not configured on this server");
+  const config = await getWhatsappConfig();
+  if (!config.phoneNumberId || !config.accessToken) {
+    throw ApiError.badRequest("WhatsApp is not configured. An admin can add the phone number id and access token under WhatsApp > Settings.");
   }
 
-  const url = `${env.WHATSAPP_API_URL}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const data = await graph<{ messages?: { id?: string }[] }>("POST", `${config.phoneNumberId}/messages`, {
+    config,
+    data: { messaging_product: "whatsapp", ...payload },
+  });
+  return data?.messages?.[0]?.id;
+}
 
-  try {
-    const response = await axios.post<{ messages?: { id?: string }[] }>(
-      url,
-      { messaging_product: "whatsapp", ...payload },
-      { headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" } },
-    );
-    return response.data?.messages?.[0]?.id;
-  } catch (err) {
-    const message = axios.isAxiosError(err) ? JSON.stringify(err.response?.data ?? err.message) : String(err);
-    throw ApiError.badRequest(`WhatsApp send failed: ${message}`);
+export interface TemplateComponent {
+  type: string;
+  sub_type?: string;
+  index?: string;
+  parameters?: unknown[];
+}
+
+/**
+ * Sends any approved template. Unlike free text this works outside the 24-hour
+ * window, so it is how the shop starts a conversation. `components` is the Cloud
+ * API's own shape (header / body / button parameters).
+ */
+export async function sendWhatsAppTemplate(
+  to: string,
+  name: string,
+  language: string,
+  components: readonly TemplateComponent[],
+): Promise<string | undefined> {
+  return postMessage({
+    to,
+    type: "template",
+    template: { name, language: { code: language }, ...(components.length > 0 ? { components } : {}) },
+  });
+}
+
+export interface WhatsAppMedia {
+  kind: "image" | "document" | "video";
+  /** A file already uploaded to WhatsApp (see uploadWhatsAppMedia). */
+  id: string;
+  caption?: string;
+  /** Shown as the file name for documents. */
+  filename?: string;
+}
+
+/**
+ * Uploads a file to WhatsApp's media store and resolves its media id, which
+ * sendWhatsAppMedia then sends. Staff attach files straight from their phone,
+ * so no public link is needed.
+ */
+export async function uploadWhatsAppMedia(file: { buffer: Buffer; mimetype: string; originalname: string }): Promise<string> {
+  if (!(await isWhatsappEnabled())) throw ApiError.badRequest("The WhatsApp service is turned off");
+  const config = await getWhatsappConfig();
+  if (!config.phoneNumberId || !config.accessToken) {
+    throw ApiError.badRequest("WhatsApp is not configured. An admin can add the phone number id and access token under WhatsApp > Settings.");
   }
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", file.mimetype);
+  form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname);
+
+  const data = await graph<{ id?: string }>("POST", `${config.phoneNumberId}/media`, { config, data: form });
+  if (!data?.id) throw ApiError.badRequest("WhatsApp didn't accept that file. Try a different one.");
+  return data.id;
+}
+
+/** An image / PDF / video that was uploaded first. Same 24-hour-window rule as sendWhatsAppText. */
+export async function sendWhatsAppMedia(to: string, media: WhatsAppMedia): Promise<string | undefined> {
+  return postMessage({
+    to,
+    type: media.kind,
+    [media.kind]: {
+      id: media.id,
+      ...(media.caption ? { caption: media.caption } : {}),
+      ...(media.kind === "document" && media.filename ? { filename: media.filename } : {}),
+    },
+  });
+}
+
+export interface WhatsAppButtons {
+  /** <= 1024 chars. */
+  body: string;
+  /** <= 60 chars. */
+  header?: string;
+  /** <= 60 chars. */
+  footer?: string;
+  /** 1 to 3 quick-reply buttons; title <= 20 chars. */
+  buttons: readonly { id: string; title: string }[];
+}
+
+/** Up to three tap-to-answer buttons. Same 24-hour-window rule as sendWhatsAppText. */
+export async function sendWhatsAppButtons(to: string, message: WhatsAppButtons): Promise<string | undefined> {
+  return postMessage({
+    to,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      ...(message.header ? { header: { type: "text", text: message.header } } : {}),
+      body: { text: message.body },
+      ...(message.footer ? { footer: { text: message.footer } } : {}),
+      action: { buttons: message.buttons.map((b) => ({ type: "reply", reply: { id: b.id, title: b.title } })) },
+    },
+  });
 }
 
 /**

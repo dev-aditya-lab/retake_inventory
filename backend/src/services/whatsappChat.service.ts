@@ -33,7 +33,7 @@ import { isWhatsappEnabled } from "./whatsappSettings.service";
 
 type MessageSource = "customer" | "app" | "bot" | "business_app";
 
-async function ensureConversation(waId: string, profileName?: string): Promise<WhatsappConversationDoc> {
+export async function ensureConversation(waId: string, profileName?: string): Promise<WhatsappConversationDoc> {
   const update = {
     $setOnInsert: { waId },
     ...(profileName ? { $set: { profileName } } : {}),

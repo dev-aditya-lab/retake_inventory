@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Pencil, Receipt, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, Receipt, Search, Trash2 } from "lucide-react";
 import { useDeleteCustomerMutation, useListCustomersQuery } from "@/lib/redux/features/customers/customersApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Pagination } from "@/components/ui/Pagination";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { AddCustomerDialog } from "@/components/customers/AddCustomerDialog";
 import { EditCustomerDialog } from "@/components/customers/EditCustomerDialog";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -35,13 +36,26 @@ function CustomerDirectory() {
 
   const [editing, setEditing] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState<Customer | null>(null);
+  const [adding, setAdding] = useState(false);
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="text-2xl font-semibold text-foreground">Customers</h1>
-      <p className="mt-1 text-sm text-muted">
-        Added automatically when a bill has a phone number. Most recent buyers first.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-56">
+          <h1 className="text-2xl font-semibold text-foreground">Customers</h1>
+          <p className="mt-1 text-sm text-muted">
+            Added automatically when a bill has a phone number, or save a contact yourself. Most recent buyers first.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
+        >
+          <Plus size={16} aria-hidden />
+          Add customer
+        </button>
+      </div>
 
       <div className="relative mt-4">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
@@ -52,7 +66,7 @@ function CustomerDirectory() {
             setSearchInput(e.target.value);
             setPage(1);
           }}
-          placeholder="Name, phone, company or email…"
+          placeholder="Name, phone, company, email or label…"
           aria-label="Search customers"
           className="input w-full pl-9"
         />
@@ -69,7 +83,7 @@ function CustomerDirectory() {
       )}
       {data && data.items.length === 0 && (
         <p className="mt-6 text-sm text-muted">
-          {search ? "No customers match." : "No customers yet — they appear here after a bill with a phone number."}
+          {search ? "No customers match." : "No customers yet. They appear here after a bill with a phone number, or add one yourself."}
         </p>
       )}
 
@@ -84,6 +98,16 @@ function CustomerDirectory() {
                   {customer.company && ` · ${customer.company}`}
                 </p>
                 {customer.gstin && <p className="truncate text-xs text-muted">GSTIN {customer.gstin}</p>}
+                {!!customer.tags?.length && (
+                  <ul className="mt-1.5 flex flex-wrap gap-1" aria-label="Labels">
+                    {customer.tags.map((tag) => (
+                      <li key={tag} className="rounded-full bg-leaf-100 px-2 py-0.5 text-[11px] font-medium text-leaf-800">
+                        {tag}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {customer.notes && <p className="mt-1.5 line-clamp-2 text-xs text-muted [overflow-wrap:anywhere]">{customer.notes}</p>}
               </div>
 
               {(customer.dueAmount ?? 0) > 0 && (
@@ -145,6 +169,7 @@ function CustomerDirectory() {
 
       {data && <Pagination page={page} limit={PAGE_SIZE} total={data.total} onPageChange={setPage} />}
 
+      <AddCustomerDialog open={adding} onClose={() => setAdding(false)} />
       <EditCustomerDialog customer={editing} onClose={() => setEditing(null)} />
       <DeleteCustomerDialog customer={deleting} onClose={() => setDeleting(null)} />
     </div>

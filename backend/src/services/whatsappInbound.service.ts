@@ -30,6 +30,7 @@ import {
 } from "../utils/whatsappWebhook";
 import { isBotPausedFor, recordEcho, recordInbound, recordOutbound, recordStatus } from "./whatsappChat.service";
 import { findCustomerName, findLastHandlingStaff, loadBills } from "./whatsappCustomer.service";
+import { getWhatsappConfig } from "./whatsappConfig.service";
 import { recordChange } from "./whatsappHealth.service";
 import { notify } from "./push.service";
 import { sendWhatsAppContacts, sendWhatsAppMenu, sendWhatsAppText, type WhatsAppContact } from "./whatsapp.service";
@@ -225,7 +226,7 @@ async function announceToStaff(message: InboundMessage, needsHuman: boolean): Pr
 export async function ingestWebhook(body: unknown): Promise<InboundMessage[]> {
   // Chat only works for the number configured in env; a message to another
   // number on the same Meta app would be filed (and answered) from the wrong sender.
-  const ownNumberId = env.WHATSAPP_PHONE_NUMBER_ID;
+  const ownNumberId = (await getWhatsappConfig()).phoneNumberId;
   const all = extractInboundMessages(body);
   const ours = all.filter((m) => ownNumberId !== undefined && m.phoneNumberId === ownNumberId);
   if (ours.length !== all.length) {

@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
-import { env } from "../config/env";
 import { logger } from "../config/logger";
 import type { RawBodyRequest } from "../middleware/rawBody";
 import { answerInbound, ingestWebhook } from "../services/whatsappInbound.service";
+import { getWhatsappConfig } from "../services/whatsappConfig.service";
 import { isWhatsappEnabled } from "../services/whatsappSettings.service";
 import { safeEqual, verifyWebhookSignature } from "../utils/whatsappWebhook";
 
@@ -11,10 +11,10 @@ import { safeEqual, verifyWebhookSignature } from "../utils/whatsappWebhook";
  * saved in the app dashboard. We must echo `hub.challenge` if the verify token
  * matches the one we configured.
  */
-export function verifyWebhook(req: Request, res: Response): void {
-  const expected = env.WHATSAPP_VERIFY_TOKEN;
+export async function verifyWebhook(req: Request, res: Response): Promise<void> {
+  const expected = (await getWhatsappConfig()).verifyToken;
   if (!expected) {
-    logger.error("WhatsApp webhook verification attempted but WHATSAPP_VERIFY_TOKEN is not set");
+    logger.error("WhatsApp webhook verification attempted but no verify token is configured");
     res.sendStatus(403);
     return;
   }
@@ -41,11 +41,11 @@ export function verifyWebhook(req: Request, res: Response): void {
  * which are slower, run after the response.
  */
 export async function receiveWebhook(req: Request, res: Response): Promise<void> {
-  const secret = env.WHATSAPP_APP_SECRET;
+  const secret = (await getWhatsappConfig()).appSecret;
   if (!secret) {
     // Never fall back to accepting unsigned requests: that would let anyone
     // trigger messages from our number.
-    logger.error("WhatsApp webhook received but WHATSAPP_APP_SECRET is not set; rejecting");
+    logger.error("WhatsApp webhook received but no app secret is configured; rejecting");
     res.sendStatus(403);
     return;
   }
