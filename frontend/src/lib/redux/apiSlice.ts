@@ -19,9 +19,13 @@ const rawBaseQuery = fetchBaseQuery({
   credentials: "include",
 });
 
-// Access tokens are short-lived (15m). On a 401, try one silent refresh
-// (rotates the httpOnly refresh cookie) and retry the original request once
-// before giving up — callers just see the eventual success or failure.
+/** Requests that must never trigger a refresh: they are how you sign in or refresh in the first place. */
+const NO_REFRESH_URLS = new Set(["/api/auth/refresh", "/api/auth/login", "/api/auth/logout", "/api/auth/otp/request", "/api/auth/otp/verify"]);
+
+// Access tokens are short-lived (15m). On a 401, renew the login once (shared by
+// every request that fails at the same moment, see refreshSession) and retry
+// the original request. Callers just see the eventual success or failure.
+// Applies to every request, including the ones written as a plain URL string.
 const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
   args,
   api,
@@ -29,9 +33,9 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 ) => {
   let result = await rawBaseQuery(args, api, extraOptions);
 
-  if (result.error?.status === 401 && typeof args !== "string" && args.url !== "/api/auth/refresh") {
-    const refreshResult = await rawBaseQuery({ url: "/api/auth/refresh", method: "POST" }, api, extraOptions);
-    if (refreshResult.data) {
+  const url = typeof args === "string" ? args : args.url;
+  if (result.error?.status === 401 && !NO_REFRESH_URLS.has(url)) {
+    if (await refreshSession()) {
       result = await rawBaseQuery(args, api, extraOptions);
     }
   }

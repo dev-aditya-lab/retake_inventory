@@ -4,8 +4,8 @@ import type { AuthUser, UserRole } from "@/types/auth";
 interface CreateUserInput {
   name: string;
   email: string;
-  password: string;
-  phone?: string;
+  /** The mobile number they sign in with (a code is sent to its WhatsApp). */
+  phone: string;
   role: UserRole;
 }
 

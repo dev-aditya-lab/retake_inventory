@@ -1,24 +1,21 @@
 import { connectDatabase, disconnectDatabase } from "../config/database";
 import { User } from "../models/User.model";
-import { hashPassword } from "../utils/password";
 import { logger } from "../config/logger";
+import { indianMobile } from "../utils/phone";
 
 /**
- * Bootstraps the very first admin account so someone can log in and start
- * inviting other staff via POST /api/users. Run with:
- *   SEED_ADMIN_EMAIL=you@retake.com SEED_ADMIN_PASSWORD=... npx tsx src/scripts/seedAdmin.ts
+ * Bootstraps the very first admin account so someone can sign in (with a code
+ * sent to their WhatsApp) and invite other staff. Run with:
+ *   SEED_ADMIN_EMAIL=you@retake.com SEED_ADMIN_PHONE=9876543210 npx tsx src/scripts/seedAdmin.ts
+ * If WhatsApp isn't set up yet, get a first code with `npm run otp:code -- you@retake.com`.
  */
 async function main() {
   const email = process.env.SEED_ADMIN_EMAIL;
-  const password = process.env.SEED_ADMIN_PASSWORD;
+  const phone = indianMobile(process.env.SEED_ADMIN_PHONE);
   const name = process.env.SEED_ADMIN_NAME ?? "Admin";
 
-  if (!email || !password) {
-    logger.error("Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD env vars before running this script");
-    process.exit(1);
-  }
-  if (password.length < 8) {
-    logger.error("SEED_ADMIN_PASSWORD must be at least 8 characters");
+  if (!email || !phone) {
+    logger.error("Set SEED_ADMIN_EMAIL and SEED_ADMIN_PHONE (a 10-digit Indian mobile) before running this script");
     process.exit(1);
   }
 
@@ -31,9 +28,8 @@ async function main() {
     return;
   }
 
-  const passwordHash = await hashPassword(password);
-  await User.create({ name, email: email.toLowerCase(), passwordHash, role: "admin" });
-  logger.info(`Admin user created: ${email}`);
+  await User.create({ name, email: email.toLowerCase(), phone, role: "admin" });
+  logger.info(`Admin user created: ${email} (${phone})`);
 
   await disconnectDatabase();
 }

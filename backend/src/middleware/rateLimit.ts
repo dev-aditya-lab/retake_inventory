@@ -21,6 +21,18 @@ export const loginLimiter = rateLimit({
   store: redisStore("rl:login:"),
 });
 
+// Asking for and entering login codes. Looser than a password limiter would be, because the
+// whole shop usually shares one IP and logs in around opening time; each code is also limited
+// per person (see auth.service), which is what really stops guessing.
+export const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many attempts, please try again in a few minutes" },
+  store: redisStore("rl:otp:"),
+});
+
 // The WhatsApp section is polled while open (chat list every few seconds, an
 // open thread more often), so it gets a generous budget — per signed-in user,
 // not per IP, because the whole shop usually shares one IP.

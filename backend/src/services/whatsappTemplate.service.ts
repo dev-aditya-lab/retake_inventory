@@ -96,7 +96,10 @@ export function toTemplateDto(t: TemplateRow): TemplateDto {
 
 export async function listTemplates(options: { sendableOnly?: boolean } = {}): Promise<TemplateDto[]> {
   // Rows created only by webhooks have no text yet ($ne alone would match a missing field too).
-  const query = options.sendableOnly ? { status: "APPROVED", bodyText: { $exists: true, $ne: "" } } : {};
+  // Authentication templates carry login codes (see auth.service); they are never offered for chats or broadcasts.
+  const query = options.sendableOnly
+    ? { status: "APPROVED", category: { $ne: "AUTHENTICATION" }, bodyText: { $exists: true, $ne: "" } }
+    : {};
   const rows = await WhatsappTemplate.find(query).sort({ name: 1, language: 1 }).lean();
   return rows.map(toTemplateDto);
 }
@@ -109,6 +112,9 @@ export async function getSendableTemplate(id: string): Promise<ParsedTemplate> {
     throw ApiError.conflict(`This template can't be sent yet (status: ${(row.status || "unknown").toLowerCase()})`);
   }
   if (!row.bodyText) throw ApiError.conflict("Sync the templates first so the message text is known");
+  if (row.category === "AUTHENTICATION") {
+    throw ApiError.conflict("This template is only used for login codes and can't be sent to customers");
+  }
   return {
     name: row.name,
     language: row.language,

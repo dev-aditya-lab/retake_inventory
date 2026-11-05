@@ -1,3 +1,5 @@
+import { env } from "../config/env";
+import { redis } from "../config/redis";
 import { ApiError } from "../utils/ApiError";
 import { normalizeIndianPhone } from "../utils/phone";
 import { graph } from "./metaGraph.service";
@@ -385,4 +387,26 @@ export async function sendWhatsAppContacts(
 			};
 		}),
 	});
+}
+
+/**
+ * Sends a staff login code with the approved authentication template. The
+ * template has the code in the body and a "copy code" button that takes the same
+ * code. The message is deliberately not stored in any chat; its id is remembered
+ * for an hour so the delivery receipts it triggers are ignored too.
+ */
+export async function sendOtpWhatsApp(phone: string, code: string): Promise<void> {
+  const id = await postMessage({
+    to: normalizeIndianPhone(phone),
+    type: "template",
+    template: {
+      name: env.WHATSAPP_OTP_TEMPLATE,
+      language: { code: env.WHATSAPP_OTP_LANGUAGE },
+      components: [
+        { type: "body", parameters: [{ type: "text", text: code }] },
+        { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
+      ],
+    },
+  });
+  if (id) await redis.set(`wa:otp:msg:${id}`, "1", "EX", 3600);
 }

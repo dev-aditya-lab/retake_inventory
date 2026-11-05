@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { isCloudinaryConfigured } from "../config/cloudinary";
+import { redis } from "../config/redis";
 import { Customer } from "../models/Customer.model";
 import { User } from "../models/User.model";
 import { WhatsappAlert } from "../models/WhatsappAlert.model";
@@ -172,6 +173,9 @@ export async function recordOutbound(record: OutboundRecord): Promise<void> {
 /** A delivery receipt for a message we sent: moves its ticks forward, never back. */
 export async function recordStatus(event: StatusEvent): Promise<void> {
   if (!isReportedStatus(event.status)) return; // e.g. "deleted", "warning": nothing to show
+
+  // A staff login code: it is not a chat message, and must not leave a stub chat behind.
+  if (await redis.get(`wa:otp:msg:${event.id}`)) return;
 
   // If this message was part of a broadcast, move that person's row forward too.
   await applyBroadcastStatus(event);

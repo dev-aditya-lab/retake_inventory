@@ -8,8 +8,13 @@ export const authApi = apiSlice.injectEndpoints({
       transformResponse: unwrap<AuthUser>,
       providesTags: ["User"],
     }),
-    login: builder.mutation<AuthUser, { email: string; password: string }>({
-      query: (body) => ({ url: "/api/auth/login", method: "POST", body }),
+    // Staff sign in with a one-time code sent to their WhatsApp (or email): no passwords.
+    requestOtp: builder.mutation<void, { identifier: string }>({
+      query: (body) => ({ url: "/api/auth/otp/request", method: "POST", body }),
+      transformResponse: () => undefined,
+    }),
+    verifyOtp: builder.mutation<AuthUser, { identifier: string; code: string }>({
+      query: (body) => ({ url: "/api/auth/otp/verify", method: "POST", body }),
       transformResponse: unwrap<AuthUser>,
       invalidatesTags: ["User"],
     }),
@@ -27,4 +32,4 @@ export const authApi = apiSlice.injectEndpoints({
   }),
 });
 
-export const { useGetMeQuery, useLoginMutation, useUpdateProfileMutation, useLogoutMutation } = authApi;
+export const { useGetMeQuery, useRequestOtpMutation, useVerifyOtpMutation, useUpdateProfileMutation, useLogoutMutation } = authApi;

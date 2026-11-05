@@ -41,3 +41,22 @@ export async function sendInvoiceEmail(params: SendInvoiceEmailParams): Promise<
     throw ApiError.badRequest(`Email send failed: ${error.message}`);
   }
 }
+
+/** A staff login code by email: the fallback when it can't go to WhatsApp. */
+export async function sendOtpEmail(to: string, code: string): Promise<void> {
+  if (!resend || !env.RESEND_FROM_EMAIL) {
+    throw ApiError.badRequest("Email is not configured on this server");
+  }
+  const { error } = await resend.emails.send({
+    from: `${company.name} <${env.RESEND_FROM_EMAIL}>`,
+    to,
+    subject: `${code} is your ${company.name} login code`,
+    html: `
+      <p>Your ${company.name} login code is:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:4px">${code}</p>
+      <p>It works for 10 minutes. For your security, do not share this code with anyone.</p>
+      <p>If you didn't try to sign in, you can ignore this email.</p>
+    `,
+  });
+  if (error) throw ApiError.badRequest(`Email send failed: ${error.message}`);
+}

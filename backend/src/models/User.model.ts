@@ -14,8 +14,8 @@ const userSchema = new Schema(
       trim: true,
       index: true,
     },
+    /** The mobile number staff sign in with (codes are sent to its WhatsApp). Stored as the bare 10 digits. */
     phone: { type: String, trim: true },
-    passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: USER_ROLES, required: true, default: "sales" },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
@@ -23,9 +23,8 @@ const userSchema = new Schema(
   { timestamps: true },
 );
 
-// `select: false` only hides passwordHash on fresh queries — a document
-// returned in-memory from .create()/.save() still carries it. Strip it at
-// serialization time so it can never leak into an API response either way.
+// Accounts made before one-time-code login still have a stored password hash in the
+// database. It is no longer read or written; make sure it can never leak into a response.
 userSchema.set("toJSON", {
   transform: (_doc, ret: Record<string, unknown>) => {
     delete ret.passwordHash;

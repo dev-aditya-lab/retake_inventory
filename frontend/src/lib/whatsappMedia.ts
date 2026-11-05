@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/redux/apiSlice";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 /**
  * Photos and files in chats are streamed by the server (which holds the Meta
@@ -19,17 +19,6 @@ export class MediaError extends Error {
 
 const cache = new Map<string, string>();
 
-async function request(url: string): Promise<Response> {
-  const attempt = () => fetch(url, { credentials: "include" });
-  let response = await attempt();
-  if (response.status === 401) {
-    // The short-lived login token ran out: refresh once, then retry.
-    const refreshed = await fetch(`${API_BASE_URL}/api/auth/refresh`, { method: "POST", credentials: "include" });
-    if (refreshed.ok) response = await attempt();
-  }
-  return response;
-}
-
 async function errorFrom(response: Response): Promise<MediaError> {
   let message = "Couldn't load this file.";
   try {
@@ -46,7 +35,7 @@ export async function loadMediaUrl(messageId: string): Promise<string> {
   const cached = cache.get(messageId);
   if (cached) return cached;
 
-  const response = await request(`${API_BASE_URL}/api/whatsapp/media/${messageId}`);
+  const response = await authenticatedFetch(`/api/whatsapp/media/${messageId}`);
   if (!response.ok) throw await errorFrom(response);
 
   const url = URL.createObjectURL(await response.blob());

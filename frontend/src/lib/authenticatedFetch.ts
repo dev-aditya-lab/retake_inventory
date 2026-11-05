@@ -1,4 +1,5 @@
-import { API_BASE_URL } from "./redux/apiSlice";
+import { API_BASE_URL } from "./apiBase";
+import { refreshSession } from "./refreshSession";
 
 /**
  * Plain fetch with the same credentials + silent-refresh-on-401 behavior as
@@ -11,11 +12,8 @@ export async function authenticatedFetch(path: string, init?: RequestInit): Prom
   const request = () => fetch(url, { ...init, credentials: "include" });
 
   let res = await request();
-  if (res.status === 401) {
-    const refreshRes = await fetch(`${API_BASE_URL}/api/auth/refresh`, { method: "POST", credentials: "include" });
-    if (refreshRes.ok) {
-      res = await request();
-    }
+  if (res.status === 401 && (await refreshSession())) {
+    res = await request();
   }
   return res;
 }

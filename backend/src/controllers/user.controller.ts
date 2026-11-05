@@ -25,6 +25,9 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     throw ApiError.badRequest("You cannot deactivate your own account");
   }
 
+  const newPhone = (req.body as { phone?: string }).phone;
+  if (newPhone) await authService.assertPhoneAvailable(newPhone, String(id));
+
   const user = await User.findByIdAndUpdate(
     id,
     req.body as { name?: string; phone?: string; role?: UserRole; isActive?: boolean },
